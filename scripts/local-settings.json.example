@@ -1,0 +1,20 @@
+{
+  "port": 18791,
+  "electron": "C:/path/to/WorkBuddy.exe",
+  "secret": "YOUR_LOCAL_SECRET",
+  "model": "deepseek-v4.1-flash",
+  "fastModel": "deepseek-v4.1-flash",
+  "exactRoutes": {
+    "claude-opus-5": "hy4-preview",
+    "claude-opus-5-5": "step-5-preview",
+    "claude-sonnet-5": "deepseek-v4.1-flash",
+    "claude-sonnet-5-5": "deepseek-v4-pro",
+    "claude-haiku-5": "glm-5.3",
+    "claude-haiku-5-5": "kimi-k3-2",
+    "claude-haiku-4-5": "minimax-m3-pay",
+    "claude-haiku-4-5-20251001": "minimax-m3-pay",
+    "claude-fable-5": "mimo-v2.6-pro",
+    "claude-fable-5-1": "space-bunny"
+  },
+  "modelRoutes": []
+}

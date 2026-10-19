@@ -1,0 +1,18 @@
+# 本机配置与运行时产物 —— 绝不入库
+local-settings.json
+server.pid
+server.stdout.log
+server.stderr.log
+last-anthropic-request.json
+last-upstream-request.json
+dump-*-anthropic.json
+
+# Python / Node
+__pycache__/
+*.pyc
+node_modules/
+
+# 编辑器与系统
+.DS_Store
+Thumbs.db
+*.swp

@@ -1,0 +1,10 @@
+* text=auto
+
+# Windows 脚本必须锁 CRLF，否则 clone 出来的 .bat 可能直接不执行
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.vbs text eol=crlf
+*.ps1 text eol=crlf
+
+*.png binary
+*.ico binary
