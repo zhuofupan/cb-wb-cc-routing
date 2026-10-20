@@ -95,13 +95,13 @@ python scripts/register-ccswitch-desktop.py --provider deepseek
 ## 测试与读取路由
 
 ```powershell
-node --test tests/gateway.test.mjs
+node --test tests/gateway.test.mjs tests/responses.test.mjs
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
 这些离线回归测试不使用真实 key、不消耗模型额度；实际在线/客户端测试覆盖见 [实测记录](references/desktop-validation.md)。[SKILL.md](SKILL.md) 是给 agent 的读取路由。
 
-旧的 Codex / Claude CLI 注册脚本仍保留供参考，不能把 CLI 通过视为 Desktop 通过。更多记录：[模型菜单](references/model-menu.md)、[CC Switch 内部](references/cc-switch-internals.md)、[限制](references/limits.md)、[排错](references/troubleshooting.md)、[Codex 隔离](references/codex-isolation.md)。
+Codex 新版注册脚本支持三个厂商、模型目录与最高档默认值；配置方法和用户配合验收见 [Codex 应用配置](references/codex-isolation.md)。Codex 应用仍待人工交互验收，不能用 CLI 通过替代。更多记录：[模型菜单](references/model-menu.md)、[CC Switch 内部](references/cc-switch-internals.md)、[限制](references/limits.md)、[排错](references/troubleshooting.md)。
 
 ## 来源与许可
 

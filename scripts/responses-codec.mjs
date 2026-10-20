@@ -37,9 +37,12 @@ export function toChat(body) {
   }
   addTools(body.tools);
   const messages = [];
+  const pendingImages = [];
+  const flushImages = () => { if (pendingImages.length) messages.push({ role: 'user', content: pendingImages.splice(0) }); };
   if (body.instructions) messages.push({ role: 'system', content: body.instructions });
   for (const item of typeof body.input === 'string' ? [{ role: 'user', content: body.input }] : body.input ?? []) {
     if (item.type === 'reasoning') continue;
+    if (!['function_call_output', 'custom_tool_call_output'].includes(item.type)) flushImages();
     if (item.type === 'function_call' || item.type === 'custom_tool_call') {
       const custom = item.type === 'custom_tool_call';
       const originalName = item.namespace ? `${item.namespace}__${item.name}` : item.name;
@@ -54,18 +57,31 @@ export function toChat(body) {
       last.tool_calls.push(call);
       last.reasoning_content = toolHistory.get(item.call_id) ?? '';
     } else if (item.type === 'function_call_output' || item.type === 'custom_tool_call_output') {
-      messages.push({ role: 'tool', tool_call_id: item.call_id, content: content(item.output) });
+      const parts = content(item.output);
+      const images = Array.isArray(parts) ? parts.filter(p => p.type === 'image_url') : [];
+      const text = Array.isArray(parts) ? parts.filter(p => p.type === 'text').map(p => p.text).join('\n') : parts;
+      messages.push({ role: 'tool', tool_call_id: item.call_id, content: text || (images.length ? 'Tool image attached in the following user message.' : '') });
+      // Tencent accepts image pixels in user messages, not tool messages.
+      pendingImages.push(...images);
     } else if (item.type === 'message' || item.role) {
       messages.push({ role: item.role === 'developer' ? 'system' : item.role, content: content(item.content) });
     } else {
       throw new Error(`Unsupported input item: ${item.type}`);
     }
   }
+  flushImages();
+  let toolChoice = body.tool_choice ?? 'auto';
+  if (toolChoice && typeof toolChoice === 'object') {
+    const chosen = names(toolChoice.namespace ? `${toolChoice.namespace}__${toolChoice.name}` : toolChoice.name ?? '');
+    if (!registry.has(chosen)) throw new Error('Requested tool_choice is not declared');
+    tools.splice(0, tools.length, ...tools.filter(t => t.function.name === chosen));
+    toolChoice = 'required';
+  }
   return { registry, request: {
     model: body.model, messages, stream: true,
     max_tokens: body.max_output_tokens ?? 16384,
     ...(body.reasoning?.effort ? { reasoning_effort: body.reasoning.effort } : {}),
-    ...(tools.length ? { tools, tool_choice: 'auto' } : {}),
+    ...(tools.length ? { tools, tool_choice: toolChoice } : {}),
   } };
 }
 

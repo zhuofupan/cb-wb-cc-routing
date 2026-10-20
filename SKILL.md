@@ -41,6 +41,8 @@ metadata:
 
 `scripts/desktop_models.py` 为当前九模型的单一菜单定义；更新型号需同步配置示例和测试。`register-ccswitch-desktop.py` 注册三个厂商之一；`setup-claude-model-routes.py` 更新已有腾讯厂商的菜单，不强写运行中的 profile。
 
+`register-ccswitch-providers.py` 为 Codex 生成逐模型目录并更新三个厂商卡片，保留插件/MCP/skills 和官方登录。先 `--prepare-only`，确认 CC Switch 退出后注册；`collect-codex-evidence.py` 只读用户手动测试的本地记录。Codex 应用尚待交互验收，不能外推 Desktop 或 CLI 的结果。
+
 ## 验证
 
 先跑仓库离线回归，再仅对变更涉及的在线路径补测；不重复消耗额度测试未受影响的项目。对 Desktop 的结论必须有实际 Desktop 证据，用户禁用 Computer Use 后使用手动步骤和本地日志读取，不擅自恢复界面控制。

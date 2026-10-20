@@ -39,6 +39,10 @@ test('CodeBuddy gateway works without WorkBuddy/DSH and preserves protocol seman
   }
   assert.ok(ready,log);
   const call=body=>fetch(root+'/v1/messages',{method:'POST',headers:{Authorization:'Bearer ck_offline_test','Content-Type':'application/json'},body:JSON.stringify({max_tokens:100,stream:false,...body})});
+  await t.test('Codex Responses route emits a completed SSE response',async()=>{
+    const r=await fetch(root+'/v1/responses',{method:'POST',headers:{Authorization:'Bearer ck_offline_test','Content-Type':'application/json'},body:JSON.stringify({model:'minimax-m3.1-flash',stream:true,input:'offline Codex probe',reasoning:{effort:'low'}})});
+    assert.equal(r.status,200);const sse=await r.text();assert.match(sse,/event: response.completed/);assert.match(sse,/response.output_text.delta/);assert.equal(received.at(-1).reasoning_effort,'max');
+  });
   await t.test('auth is required and catalog exposes prefixed 1M model',async()=>{
     const denied=await fetch(root+'/v1/models');assert.equal(denied.status,401);
     const r=await fetch(root+'/v1/models',{headers:{Authorization:'Bearer ck_offline_test'}});assert.equal(r.status,200);
