@@ -43,7 +43,7 @@ accessToken，还要会刷新），不是普通 API key。CC Switch 没有这个
 
 ## 四个一定会踩的坑
 
-### 1. 11128：客户端指纹（唯一的真坑）
+### 1. 11128：客户端指纹（最早发现的一处）
 
 Claude Code 把 `x-anthropic-billing-header: cc_version=…; cc_entrypoint=…;`
 塞进 system **的第一段**。WorkBuddy 上游判为「未批准渠道」，返回
