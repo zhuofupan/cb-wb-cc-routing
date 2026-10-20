@@ -7,6 +7,61 @@
 
 ---
 
+# 写给用户
+
+## 是什么
+
+同一套配置能把两个上游（DeepSeek 官方、WorkBuddy）接进两个客户端
+（Codex CLI、Claude Code / Desktop）的四条通路，附带可运行的适配器代码。
+
+## 四条通路
+
+| 通路 | 中间件 |
+| --- | --- |
+| DeepSeek → Codex / Claude Code | 不需要（官方自带 Anthropic 兼容端点） |
+| WorkBuddy → Codex / Claude Code | 需要 18791 适配器 |
+| WorkBuddy → Desktop / Cowork | 需要 18791 适配器 + CC Switch |
+
+WorkBuddy 必须走适配器：上游认的是桌面版登录态（accessToken，会过期要刷新），
+不是普通 API key。适配器**只读**打开桌面版的加密凭据，调 `WorkBuddy.exe` 取
+解密密钥，再以 Bearer 打上游 —— 不拦截流量。
+
+## 图什么
+
+**不被锁在任何一家。** 换模型不用换工作现场、一套额度跑三个壳、
+能用 Claude Code 的生态、失败能退回官方。
+
+代价是多养一层适配器、thinking 不回传、CC Switch 必须手动开。
+
+详见 [`references/why.md`](references/why.md)。
+
+## 依赖哪些软件
+
+| 通路 | WorkBuddy | 适配器 18791 | CC Switch 15721 |
+| --- | --- | --- | --- |
+| DeepSeek 两条 | ✗ | ✗ | ✗ |
+| WorkBuddy → Codex / Claude Code | ✓ | ✓ | ✗ |
+| WorkBuddy → Desktop / Cowork | ✓ | ✓ | ✓ |
+
+WorkBuddy 必须保持**可运行**（不只是登录过）—— 解密要调它的可执行文件。
+
+详见 [`references/requirements.md`](references/requirements.md)。
+
+## 注意
+
+配置步骤在 [`SKILL.md`](SKILL.md)；三个必踩的坑（11128 的两个来源、
+模型菜单的真正开关）也在那里和 [`references/troubleshooting.md`](references/troubleshooting.md)、
+[`references/model-menu.md`](references/model-menu.md)。
+
+仓库不含真实密钥，脚本从环境变量读取：`CCSWITCH_DB`、`ADAPTER_HOME`、
+`DEEPSEEK_API_KEY`、`WORKBUDDY_LOCAL_SECRET`、`CLAUDE_3P_PROFILE`。
+
+## 来源与许可
+
+- DSH 插件（WorkBuddy 认证）：https://github.com/corrinehu/dsh-workbuddy-connect （MIT）
+- 官方 DeepSeek Codex 指南：https://api-docs.deepseek.com/quick_start/agent_integrations/codex/
+- 本仓库：MIT
+
 # 给 AI 的工作说明
 
 ## 读取路由
@@ -78,60 +133,3 @@
 ln -s "$(pwd)" ~/.claude/skills/ds-wb-cc-routing     # Claude Code
 # 或复制进 CC Switch 的 skills 目录
 ```
-
----
-
-# 给人快速了解
-
-## 是什么
-
-同一套配置能把两个上游（DeepSeek 官方、WorkBuddy）接进两个客户端
-（Codex CLI、Claude Code / Desktop）的四条通路，附带可运行的适配器代码。
-
-## 四条通路
-
-| 通路 | 中间件 |
-| --- | --- |
-| DeepSeek → Codex / Claude Code | 不需要（官方自带 Anthropic 兼容端点） |
-| WorkBuddy → Codex / Claude Code | 需要 18791 适配器 |
-| WorkBuddy → Desktop / Cowork | 需要 18791 适配器 + CC Switch |
-
-WorkBuddy 必须走适配器：上游认的是桌面版登录态（accessToken，会过期要刷新），
-不是普通 API key。适配器**只读**打开桌面版的加密凭据，调 `WorkBuddy.exe` 取
-解密密钥，再以 Bearer 打上游 —— 不拦截流量。
-
-## 图什么
-
-**不被锁在任何一家。** 换模型不用换工作现场、一套额度跑三个壳、
-能用 Claude Code 的生态、失败能退回官方。
-
-代价是多养一层适配器、thinking 不回传、CC Switch 必须手动开。
-
-详见 [`references/why.md`](references/why.md)。
-
-## 依赖哪些软件
-
-| 通路 | WorkBuddy | 适配器 18791 | CC Switch 15721 |
-| --- | --- | --- | --- |
-| DeepSeek 两条 | ✗ | ✗ | ✗ |
-| WorkBuddy → Codex / Claude Code | ✓ | ✓ | ✗ |
-| WorkBuddy → Desktop / Cowork | ✓ | ✓ | ✓ |
-
-WorkBuddy 必须保持**可运行**（不只是登录过）—— 解密要调它的可执行文件。
-
-详见 [`references/requirements.md`](references/requirements.md)。
-
-## 注意
-
-配置步骤在 [`SKILL.md`](SKILL.md)；三个必踩的坑（11128 的两个来源、
-模型菜单的真正开关）也在那里和 [`references/troubleshooting.md`](references/troubleshooting.md)、
-[`references/model-menu.md`](references/model-menu.md)。
-
-仓库不含真实密钥，脚本从环境变量读取：`CCSWITCH_DB`、`ADAPTER_HOME`、
-`DEEPSEEK_API_KEY`、`WORKBUDDY_LOCAL_SECRET`、`CLAUDE_3P_PROFILE`。
-
-## 来源与许可
-
-- DSH 插件（WorkBuddy 认证）：https://github.com/corrinehu/dsh-workbuddy-connect （MIT）
-- 官方 DeepSeek Codex 指南：https://api-docs.deepseek.com/quick_start/agent_integrations/codex/
-- 本仓库：MIT
