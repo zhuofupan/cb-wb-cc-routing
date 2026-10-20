@@ -86,8 +86,8 @@ route id → 上游模型的映射做在适配器的 `exactRoutes`（**精确匹
 
 9 个 id 逐个测过路由，全部命中正确上游。
 
-⚠️ `mimo-v2.6-pro` 自称「小米的 AI 助手 MiMo」，带 `Read` 工具时直接拒答，
-不适合 agent —— 留着当菜单项可以，别用来干活。
+⚠️ `mimo-v2.6-pro` 早期记录过带 `Read` 工具拒答（自称「小米的 AI 助手 MiMo」），
+**但后续复测未能复现，四场景全部正常**。可以再试。详见 [limits.md](limits.md)。
 
 脚本：`scripts/setup-claude-model-routes.py`（幂等，会重写 profile 九项）。
 

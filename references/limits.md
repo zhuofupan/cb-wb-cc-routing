@@ -21,14 +21,28 @@
 逐个实测的只有 `deepseek-v4.1-flash` 与 `deepseek-v4-pro`。
 其余 WorkBuddy 模型只做了目录发现，未逐个消耗额度试跑。
 
-## 模型自身的身份约束
+## 模型自身的身份约束（2026-10-20 后已复测：未复现）
 
-⚠️ **`mimo-v2.6-pro` 不适合 agent**：自称「小米的 AI 助手 MiMo」，
-收到带 `Read` 工具的请求直接拒答（`stop_reason=end_turn`，内容是
-「无法读取您本地系统的文件……超出了我的权限」）。
+⚠️ 早期记录：**`mimo-v2.6-pro` 自称「小米的 AI 助手 MiMo」**，收到带 `Read` 工具的请求
+直接拒答（`stop_reason=end_turn`，内容是「无法读取您本地系统的文件……超出了我的权限」）。
 
-通路本身是好的，是模型的身份约束。换成 `deepseek-v4-pro` / `space-bunny` /
-`kimi-k3-2` 都正常。
+**但后续复测四个场景全部正常，拒答未能复现**：
+
+| 场景 | 结果 |
+| --- | --- |
+| 纯对话 | 正常 |
+| 带 `Read` 工具 | `stop_reason=tool_use`，正确调用 |
+| 回灌 `tool_result` 后下一轮 | 正确复述文件内容 |
+| 带编码 agent system + `Read`/`Bash`/`Edit` 三工具 | 正确 `tool_use` |
+
+可能的原因：上游模型更新，身份约束已松动；或早期测试时适配器尚未加
+`CHANNEL_MARKERS`，实际触发的是 11128 渠道检查，与模型身份无关。
+
+**结论**：mimo **可以再试**，但上面的复测是**直连适配器**做的，不是真实 `claude -p`。
+用之前建议在真实客户端里跑一次「读文件」确认；若仍拒答，用 `WB_DUMP=1` 抓完整请求再定位。
+
+其余已验证能正常跑工具调用：`deepseek-v4-pro` / `space-bunny` / `kimi-k3-2`。
+
 
 ## WorkBuddy 通路的稳定性依赖
 

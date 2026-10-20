@@ -60,6 +60,23 @@ python scripts/register-ccswitch-desktop.py     # Claude Desktop / Cowork
 ⚠️ CC Switch 是 GUI 托盘应用，**自动化会话里拉不起来** —— 进程会随会话被清理。
 改完 Desktop 配置必须自己开 CC Switch。
 
+## 它解决什么问题
+
+一句话：**直接用 WorkBuddy，你只有 WorkBuddy；配上之后，你在 Codex / Claude Code 里多了一个可选上游。**
+
+| | 直接用 WorkBuddy | 配上这套路由 |
+| --- | --- | --- |
+| 能用的模型 | WorkBuddy 全家桶 | 全家桶 **+** DeepSeek 官方 **+** 官方 Claude |
+| 会话历史 | 锁在 WorkBuddy 里 | 与官方模型并列在 Codex / Claude Code 自己那里 |
+| 技能 / MCP 生态 | WorkBuddy 的 | Codex / Claude Code 的 |
+
+四个实际好处：**换模型不用换工作现场**、**一套额度跑三个壳**、
+**能用 Claude Code 的生态**、**失败能退回官方**。
+
+代价：多养一层适配器、thinking 不回传、CC Switch 必须手动开。
+
+完整对照（含「什么时候不该这么配」）见 [references/why.md](references/why.md)。
+
 ## 最值得知道的三件事
 
 ### 1. 11128 是渠道指纹，不是限流

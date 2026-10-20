@@ -103,10 +103,16 @@ Claude Code 把 `x-anthropic-billing-header: cc_version=…; cc_entrypoint=…;`
 Claude Code 发厂商名（`claude-sonnet-4-5-20250929`），WorkBuddy 不认。适配器按
 `local-settings.json` 解析，**精确匹配先于正则**（否则 `opus` 会把 `claude-opus-5-5` 一起吃掉）。
 
-⚠️ **`mimo-v2.6-pro` 不适合 agent**：自称「小米的 AI 助手 MiMo」，带 `Read` 工具时
-直接拒答。通路没问题，是模型的身份约束。
+⚠️ **`mimo-v2.6-pro`**：早期记录它自称「小米的 AI 助手 MiMo」，带 `Read` 工具时
+直接拒答；**后续复测四个场景（含回灌 tool_result、多工具）全部正常，未能复现**。
+可以再试，但用前建议在真实客户端跑一次「读文件」确认。详见
+[references/limits.md](references/limits.md)。
 
 ## 按需读取参考文件
+
+- [references/why.md](references/why.md)
+  —— 用户问「这样配和直接用 WorkBuddy 有什么区别 / 好处在哪 / 值不值得」时读。
+  含对照表、四个好处、代价清单、「什么时候不该这么配」。
 
 - [references/troubleshooting.md](references/troubleshooting.md)
   —— 报 11128 / 11133 / 超时 / 000 时读。二分定位套路、错误码对照、直连测试命令。
