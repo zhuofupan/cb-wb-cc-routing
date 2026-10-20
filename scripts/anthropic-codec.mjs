@@ -221,7 +221,7 @@ const stopReason = finish => STOP_REASONS[finish] ?? 'end_turn';
  * Stream Chat Completions deltas as Anthropic SSE events.
  * Returns the completed non-streaming message shape (also used for stream:false).
  */
-export async function convertStream(upstream, { model, estimatedInput }, send) {
+export async function convertStream(upstream, { model, estimatedInput, onUsage }, send) {
   const id = newId();
   const content = [];
   let index = -1;
@@ -282,7 +282,7 @@ export async function convertStream(upstream, { model, estimatedInput }, send) {
   for await (const chunk of parseChatStream(upstream)) {
     if (chunk.error) throw new Error('WorkBuddy returned a stream error');
     if (chunk.code && chunk.code !== 0) throw new Error(`WorkBuddy stream error code ${chunk.code}`);
-    if (chunk.usage) usage = chunk.usage;
+    if (chunk.usage) { usage = chunk.usage; onUsage?.(chunk.usage); }
     const option = chunk.choices?.[0];
     if (!option) continue;
     if (option.finish_reason) finish = option.finish_reason;
@@ -332,7 +332,7 @@ export async function convertStream(upstream, { model, estimatedInput }, send) {
   }
 
   const outUsage = {
-    input_tokens: usage?.prompt_tokens ?? estimatedInput,
+    input_tokens: usage?.prompt_tokens == null ? estimatedInput : Math.max(0, usage.prompt_tokens - (usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? 0)),
     output_tokens: usage?.completion_tokens ?? 0,
     cache_read_input_tokens: usage?.prompt_cache_hit_tokens ?? usage?.prompt_tokens_details?.cached_tokens ?? 0,
   };

@@ -4,17 +4,15 @@ import subprocess
 
 MODELS = [
     ('claude-fable-5', 'deepseek-v4.1-flash', 'Deepseek-V4.1-Flash', 1000000, 'max'),
-    ('claude-haiku-5', 'minimax-m3.1-flash', 'MiniMax-M3.1-Flash', 1000000, 'max'),
+    ('claude-fable-5-1', 'minimax-m3.1-flash', 'MiniMax-M3.1-Flash', 1000000, 'max'),
     ('claude-haiku-5-5', 'glm-5.3-flashx', 'GLM-5.3-FlashX', 1000000, 'max'),
-    ('claude-opus-4-8', 'glm-5.3', 'GLM-5.3', 1000000, 'max'),
-    ('claude-sonnet-5', 'kimi-k3-2', 'Kimi-K3', 1000000, 'max'),
 ]
-MULTIPLIERS = dict(zip((m[1] for m in MODELS), ['0.11', '0.08', '0.19', '0.69', '1.62']))
+MULTIPLIERS = dict(zip((m[1] for m in MODELS), ['0.11', '0.08', '0.19']))
 
 def model_label(vendor, model, label, window):
     prefix = {'workbuddy': 'wb', 'codebuddy': 'cb'}[vendor]
     size = f'{window//1000000}M' if window % 1000000 == 0 else f'{window//1000}k'
-    return f'{prefix}·{label} ({MULTIPLIERS[model]}x) · {size}'
+    return f'{prefix}/ {label} ({MULTIPLIERS[model]}x) \u00b7 {size}'
 
 def routes_for(vendor):
     if vendor == 'deepseek':

@@ -10,7 +10,7 @@ class CodexTests(unittest.TestCase):
             result=evidence.inspect(p,'TEST-MARKER');self.assertEqual(result['models'],['minimax-m3.1-flash']);self.assertEqual(result['efforts'],['max']);self.assertNotIn('private output',json.dumps(result));self.assertIsNone(evidence.inspect(p,'NOT-THERE'))
     def test_catalog_capacity_effort_and_vision(self):
         template={'model_messages':{'instructions':'official prompt'},'shell_type':'unified_exec','supports_search_tool':True}
-        for vendor,count in [('codebuddy',5),('workbuddy',5),('deepseek',1)]:
+        for vendor,count in [('codebuddy',3),('workbuddy',3),('deepseek',1)]:
             models=module.catalog(vendor,template)['models'];self.assertEqual(len(models),count)
             for m in models:
                 self.assertNotIn('model_messages',m);self.assertEqual(m['context_window'],m['max_context_window']);self.assertFalse(m['supports_search_tool'])
@@ -19,10 +19,10 @@ class CodexTests(unittest.TestCase):
             self.assertFalse({'deepseek-v4-pro','space-bunny','hy4-preview','step-5-preview','mimo-v2.6-pro'} & {m['slug']for m in models})
             if vendor=='deepseek':self.assertEqual(models[0]['context_window'],1048576)
             else:
-                self.assertTrue(all(m['display_name'].startswith('cb·'if vendor=='codebuddy'else'wb·')for m in models))
-                self.assertEqual([m['slug'] for m in models], ['deepseek-v4.1-flash','minimax-m3.1-flash','glm-5.3-flashx','glm-5.3','kimi-k3-2'])
+                self.assertTrue(all(m['display_name'].startswith('cb/ 'if vendor=='codebuddy'else'wb/ ')for m in models))
+                self.assertEqual([m['slug'] for m in models], ['deepseek-v4.1-flash','minimax-m3.1-flash','glm-5.3-flashx'])
                 self.assertIn('GLM-5.3-FlashX (0.19x) · 1M',models[2]['display_name'])
-                self.assertEqual([m['priority'] for m in models],list(range(5)))
+                self.assertEqual([m['priority'] for m in models],list(range(3)))
     def test_registration_preserves_selection_and_other_settings(self):
         with sqlite3.connect(':memory:')as conn:
             conn.execute('create table providers(id text,app_type text,settings_config text,meta text,is_current integer)')

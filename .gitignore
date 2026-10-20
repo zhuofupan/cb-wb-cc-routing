@@ -27,3 +27,4 @@ last-*.json
 dump-*.json
 server-*.log
 *.db*
+buddy-usage.jsonl

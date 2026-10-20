@@ -13,40 +13,27 @@
     "claude-fable-5": "deepseek-v4.1-flash",
     "claude-haiku-5": "minimax-m3.1-flash",
     "claude-haiku-5-5": "glm-5.3-flashx",
-    "claude-opus-4-8": "glm-5.3",
-    "claude-sonnet-5": "kimi-k3-2"
+    "claude-fable-5-1": "minimax-m3.1-flash"
   },
   "modelRoutes": [],
   "models": [
     {
       "id": "deepseek-v4.1-flash",
-      "name": "wb·Deepseek-V4.1-Flash (0.11x) · 1M",
+      "name": "wb/ Deepseek-V4.1-Flash (0.11x) \u00b7 1M",
       "context": 1000000,
       "multiplier": "0.11"
     },
     {
       "id": "minimax-m3.1-flash",
-      "name": "wb·MiniMax-M3.1-Flash (0.08x) · 1M",
+      "name": "wb/ MiniMax-M3.1-Flash (0.08x) \u00b7 1M",
       "context": 1000000,
       "multiplier": "0.08"
     },
     {
       "id": "glm-5.3-flashx",
-      "name": "wb·GLM-5.3-FlashX (0.19x) · 1M",
+      "name": "wb/ GLM-5.3-FlashX (0.19x) \u00b7 1M",
       "context": 1000000,
       "multiplier": "0.19"
-    },
-    {
-      "id": "glm-5.3",
-      "name": "wb·GLM-5.3 (0.69x) · 1M",
-      "context": 1000000,
-      "multiplier": "0.69"
-    },
-    {
-      "id": "kimi-k3-2",
-      "name": "wb·Kimi-K3 (1.62x) · 1M",
-      "context": 1000000,
-      "multiplier": "1.62"
     }
   ]
 }

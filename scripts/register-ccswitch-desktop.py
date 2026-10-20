@@ -18,6 +18,7 @@ def main(argv=None):
         with closing(sqlite3.connect(str(db)+'.backup-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))) as dest: conn.backup(dest)
         row=conn.execute("select settings_config,meta from providers where id=? and app_type='claude-desktop'",(pid,)).fetchone()
         cfg=json.loads(row[0])if row else {'env':{}};cfg.setdefault('env',{}).update(ANTHROPIC_BASE_URL=endpoint,ANTHROPIC_AUTH_TOKEN=key);cfg['env'].pop('ANTHROPIC_MODEL',None)
+        if args.provider in ('workbuddy','codebuddy'): cfg['env']['CLAUDE_CODE_EFFORT_LEVEL']='max'
         meta=json.loads(row[1]or'{}')if row else {};meta.pop('claude_desktop_model_routes',None)
         meta.update(commonConfigEnabled=False,claudeDesktopMode='proxy',apiFormat='anthropic',claudeDesktopModelRoutes=routes_for(args.provider))
         values=(json.dumps(cfg,ensure_ascii=False),json.dumps(meta,ensure_ascii=False))

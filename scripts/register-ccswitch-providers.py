@@ -55,7 +55,7 @@ def config(vendor, key, path, base=''):
     _, name, endpoint, _ = VENDORS[vendor]
     quote = lambda value: json.dumps(str(value).replace('\\', '/'), ensure_ascii=False)
     return f'''model_provider = "custom"
-model = "{'deepseek-flash' if vendor == 'deepseek' else 'minimax-m3.1-flash'}"
+model = "{'deepseek-flash' if vendor == 'deepseek' else 'deepseek-v4.1-flash'}"
 model_reasoning_effort = "{'max' if vendor == 'deepseek' else 'xhigh'}"
 model_reasoning_summary = "none"
 model_catalog_json = {quote(path)}

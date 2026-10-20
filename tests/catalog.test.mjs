@@ -16,7 +16,7 @@ test('account cache updates selected metadata without adding unselected models',
   await writeFile(join(dir, 'entry_models.info'), JSON.stringify(gzipSync(JSON.stringify({ data: { models: rows } })).toString('base64')));
   const selected = [{ id: 'hy4-preview', name: 'CB·Hy4 preview·1M', context: 1000000 }, { id: 'missing', name: 'CB·Missing·1M', context: 1000000 }];
   const merged = mergeSelected(selected, await cachedModels(dir), 'codebuddy');
-  assert.equal(merged.length, 2); assert.equal(merged[0].name, 'cb·Hy4 preview · 960k'); assert.equal(merged[0].effort, 'high');
+  assert.equal(merged.length, 2); assert.equal(merged[0].name, 'cb/ Hy4 preview · 960k'); assert.equal(merged[0].effort, 'high');
   assert.equal(merged[1].context, 1000000); assert.equal(merged[1].effort, 'max');
   const path = join(dir, 'codex.json');
   await writeFile(path, JSON.stringify({ models: [{ slug: 'hy4-preview', supported_reasoning_levels: [{ effort: 'medium' }], tool_mode: 'keep' }] }));
@@ -40,7 +40,17 @@ test('billing labels refresh without duplication and retain selected order and f
   const upstream = [{id:'glm-5.3-flashx',contextWindow:512000,billing:{credits:'x0.20 credits'}}];
   const merged = mergeSelected(selected,upstream,'workbuddy');
   assert.deepEqual(merged.map(m=>m.id),selected.map(m=>m.id));
-  assert.equal(merged[0].name,'wb·GLM-5.3-FlashX (0.20x) · 512k');
-  assert.equal(merged[1].name,'wb·Kimi-K3 (1.62x) · 1M');
+  assert.equal(merged[0].name,'wb/ GLM-5.3-FlashX (0.20x) · 512k');
+  assert.equal(merged[1].name,'wb/ Kimi-K3 (1.62x) · 1M');
   assert.deepEqual(mergeSelected(merged,upstream,'workbuddy'),merged);
+});
+
+test('repair the installed mojibake labels and keep slash labels stable on refresh', () => {
+  for (const mode of ['workbuddy', 'codebuddy']) {
+    const prefix = mode === 'workbuddy' ? 'wb' : 'cb';
+    const selected = [{ id: 'deepseek-v4.1-flash', name: `${prefix}\u8defDeepseek-V4.1-Flash (0.11x) \u8def 1M`, context: 1000000 }];
+    const result = mergeSelected(selected, [], mode);
+    assert.equal(result[0].name, `${prefix}/ Deepseek-V4.1-Flash (0.11x) · 1M`);
+    assert.deepEqual(mergeSelected(result, [], mode), result);
+  }
 });

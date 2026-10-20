@@ -6,19 +6,21 @@
 {
   "claudeDesktopMode": "proxy",
   "claudeDesktopModelRoutes": {
-    "claude-haiku-5": {
+    "claude-fable-5-1": {
       "model": "minimax-m3.1-flash",
-      "labelOverride": "cb·MiniMax-M3.1-Flash (0.08x) · 1M",
+      "labelOverride": "cb/ MiniMax-M3.1-Flash (0.08x) · 1M",
       "supports1m": false
     }
   }
 }
 ```
 
-CC Switch 把别名、标签写到 `%LOCALAPPDATA%/Claude-3p/configLibrary/` 的 profile；代理将 Claude 别名映射为真实模型 ID。`labelOverride` 控制显示名。WB 使用 `wb·`，CB 使用 `cb·`，全部带目录声明的窗口后缀。每厂商五模型，一个供应商卡片；不为每模型创建供应商。
+CC Switch 把别名、标签写到 `%LOCALAPPDATA%/Claude-3p/configLibrary/` 的 profile；代理将 Claude 别名映射为真实模型 ID。`labelOverride` 控制显示名。WB 使用 `wb/ `，CB 使用 `cb/ `，全部带倍率与窗口后缀。每厂商默认三模型，一个供应商卡片；不为每模型创建供应商。
 
-完整映射以 [desktop_models.py](../scripts/desktop_models.py) 为准。当前五个原生别名按字典序分配给 DeepSeek、MiniMax、GLM FlashX、GLM、Kimi，兼容本机 profile 按别名排序的行为。别名只用于路由，不代表真实 Claude 型号。旧 MiniMax 的 `claude-haiku-4-5` 曾触发 200k 上限，当前不使用该旧别名；五款上游目录均声明 1M。
+完整映射以 [desktop_models.py](../scripts/desktop_models.py) 为准。默认三个原生别名按字典序分配给 DeepSeek、MiniMax、GLM FlashX，与 Codex 顺序一致，默认 DeepSeek。MiniMax 改用 `claude-fable-5-1`；本机 2.1.299 的自动审批检查会拒绝旧 `claude-haiku-5`。别名只用于路由，不代表真实 Claude 型号；三款上游目录均声明 1M。菜单标签与代理路由必须一起修改，单改标签可能把 Kimi 显示成 DeepSeek。
 
 不要编辑签名 model-catalog，也不要把 profile 设只读。此前按 snake_case 搜索 exe 后得出“不支持映射”的结论错误；只读曾实际导致供应商切换写入失败。保留 profile 可写，让 CC Switch 负责生成。
 
 `supports1m:true` 可能多渲染一条 1M 变体。当前只保留一个菜单项，使用 false；它不表示关闭上游真实 1M 能力，也不能单凭该字段证明窗口已生效。Code 与 Cowork 需分开验收，见 [上下文](context-window.md)。
+
+默认不配置 Kimi 与 GLM 5.3；仅在用户明确要求时加入菜单、目录和路由。保持 1M 上下文与 highest/max 策略。

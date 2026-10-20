@@ -1,6 +1,18 @@
 # 2026-10-21：模型调整与测试结果
 
-## 当前菜单与新增 FlashX
+## 当前配置与最终验收
+
+2026-10-21，用户明确确认“现在所有功能都测试好了”。此项记为用户对当前使用范围的客户端验收确认；下面的历史失败、旧型号记录和未执行的满 1M token 负载测试仍分别保留，不把该确认扩写为未记录的逐功能矩阵。
+
+- cb/wb 默认仅三款：DeepSeek-V4.1-Flash → MiniMax-M3.1-Flash → GLM-5.3-FlashX；初始模型为 DS。Kimi、GLM-5.3 仅按明确请求配置，目录刷新不会自动加回未选模型。
+- 标签统一为 `cb/ 模型 (倍率x) · 1M`、`wb/ 模型 (倍率x) · 1M`；修复旧分隔符乱码以及刷新后重复前缀、倍率的问题。
+- MiniMax 的菜单别名改为 `claude-fable-5-1`，避免旧 `claude-haiku-5` 的自动审批能力限制。内置 Claude Code 返回 supportsAutoMode=true，切换 auto 成功；代理文本实测确认真实模型仍为 MiniMax。
+- 用户测试记录曾将标为 DS 的 `claude-sonnet-5` 实际路由到 Kimi。现已统一标签和路由。Clash 运行连接显示腾讯接口走 DIRECT，两种连接探针响应头约 125ms；该结果不能外推所有网络和长请求耗时。
+- Claude 的 MAX 与 Codex 的 xhigh 分开配置，网关仍强制上游 max。Code 新建页最终采用官方 Windows 用户级 effortLevel=max 策略；Cowork 独立保存逐模型档位，保留 1M 配置。详见[思考档位](reasoning-effort.md)。
+- 持久用量账本记录上游数字用量，修复 Anthropic 输入 token 对缓存的重复计算；离线测试覆盖账本内容和协议转换。缺失的信用额度保持 null，不记为零。该账本不包含会话正文或凭据。
+- 发布前回归：Node 16 项、Python 8 项通过；技能结构校验通过；Code 策略脚本通过 Windows PowerShell 的 -WhatIf 无修改预览，Git 差异格式检查通过。本次发布整理未重复消耗额度执行在线矩阵。
+
+## 历史：五模型菜单与新增 FlashX
 
 cb/wb 各五款，按用户指定顺序：DeepSeek-V4.1-Flash 0.11x、MiniMax-M3.1-Flash 0.08x、GLM-5.3-FlashX 0.19x、GLM-5.3 0.69x、Kimi-K3 1.62x。各声明 1M；名称格式为 `cb·模型 (倍率x) · 1M` / `wb·模型 (倍率x) · 1M`。移除 Xiaomi MiMo，不继续为其增加适配补丁；已有共享协议兼容保留。
 

@@ -21,9 +21,10 @@
 import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { timingSafeEqual } from 'node:crypto';
+import { timingSafeEqual, randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { usageRecord, appendUsage } from './usage-ledger.mjs';
 import { cachedModels, mergeSelected, syncCodexCatalog } from './catalog-sync.mjs';
 
 const argv = process.argv.slice(2);
@@ -323,11 +324,28 @@ const server = createServer(async (req, res) => {
     item.requests++; item.total_ms += Date.now() - started;
     if (failed || res.statusCode >= 400 || !res.writableEnded) item.errors++;
     item.last_effort = trackedEffort;
-    item.input_tokens += trackedUsage?.input_tokens ?? 0;
+    item.input_tokens += (trackedUsage?.input_tokens ?? 0) + (trackedUsage?.cache_read_input_tokens ?? 0);
     item.output_tokens += trackedUsage?.output_tokens ?? 0;
     item.cached_input_tokens += trackedUsage?.input_tokens_details?.cached_tokens ?? trackedUsage?.cache_read_input_tokens ?? 0;
   });
   const path = req.url?.split('?')[0];
+  const ledgerId = randomUUID();
+  const ledgerStarted = Date.now();
+  let rawUsage = null;
+  const captureUsage = usage => {
+    const next = usageRecord(usage);
+    if (next) rawUsage = { ...next, credit: next.credit ?? rawUsage?.credit ?? null };
+  };
+  res.once('close', () => {
+    if (!trackedModel || config.usageLedger === false) return;
+    const ledgerPath = config.usageLedger ?? join(homedir(), '.cc-switch', 'buddy-usage.jsonl');
+    appendUsage(ledgerPath, {
+      id: ledgerId, ts: ledgerStarted, account: MODE, model: trackedModel,
+      protocol: path?.includes('messages') ? 'anthropic' : 'responses',
+      status: res.statusCode, complete: res.writableEnded && !failed,
+      usage: rawUsage,
+    }).catch(error => console.error(JSON.stringify({ event: 'usage_ledger_failed', code: error.code ?? error.name })));
+  });
 
   if (path === '/health' && req.method === 'GET') {
     return json(res, 200, { ready: true, mode: MODE, port: PORT, requests: count });
@@ -405,7 +423,7 @@ const server = createServer(async (req, res) => {
           { error: { message: `${MODE} upstream (${upstream.status}): ${String(upstream.message ?? '').slice(0, 300)}`, type: upstream.kind ?? 'upstream_error' } });
       }
       count++;
-      const options = { model: converted.model, estimatedInput: converted.estimatedInput };
+      const options = { model: converted.model, estimatedInput: converted.estimatedInput, onUsage: captureUsage };
       if (body.stream) {
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
         const heartbeat = setInterval(() => res.write(': keepalive\n\n'), 10000);
@@ -442,7 +460,7 @@ const server = createServer(async (req, res) => {
     const heartbeat = body.stream ? setInterval(() => res.write(': keepalive\n\n'), 10000) : undefined;
     try {
       const result = await convertResponsesStream(upstream.response.body, body.model, registry,
-        (event, data) => { if (body.stream) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); });
+        (event, data) => { if (body.stream) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }, captureUsage);
       trackedUsage = result.usage;
       if (body.stream) res.end(); else json(res, 200, result);
     } finally { clearInterval(heartbeat); }

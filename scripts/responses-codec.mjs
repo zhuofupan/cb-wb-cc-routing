@@ -147,7 +147,7 @@ export async function* parseChatStream(upstream) {
   if (!inside && pending) yield { choices: [{ delta: { content: pending } }] };
 }
 
-export async function convertStream(upstream, model, registry, send) {
+export async function convertStream(upstream, model, registry, send, onUsage) {
   let seq = 0;
   const emit = (type, data = {}) => send(type, { type, sequence_number: seq++, ...data });
   const response = { id: id('resp'), object: 'response', created_at: Math.floor(Date.now() / 1000),
@@ -160,7 +160,7 @@ export async function convertStream(upstream, model, registry, send) {
   for await (const chunk of parseChatStream(upstream)) {
     if (chunk.error) throw new Error('WorkBuddy returned a stream error');
     if (chunk.code && chunk.code !== 0) throw new Error(`WorkBuddy stream error code ${chunk.code}`);
-    if (chunk.usage) usage = chunk.usage;
+    if (chunk.usage) { usage = chunk.usage; onUsage?.(chunk.usage); }
     const choice = chunk.choices?.[0];
     if (!choice) continue;
     if (choice.finish_reason) { finished = true; finishReason = choice.finish_reason; }

@@ -4,7 +4,7 @@ GitHub 仓库：[`zhuofupan/cb-wb-cc-routing`](https://github.com/zhuofupan/cb-w
 
 用 CC Switch 将 **DeepSeek 官方、CodeBuddy、WorkBuddy** 接入 **Claude Desktop 的 Code / Cowork**，并保留 Claude Code / Codex 的协议适配示例。目标是更换模型与额度来源，同时继续使用客户端的文件工具、Skills、MCP 和插件；不是把厂商聊天界面搬过来。
 
-2026-10-21 更新：CodeBuddy / WorkBuddy 各保留五款，按用户指定的性价比顺序排列：DeepSeek、MiniMax、GLM FlashX、GLM、Kimi。移除 Xiaomi MiMo，新增 GLM-5.3-FlashX；名称格式为 `cb·模型名 (倍率x) · 上下文` / `wb·模型名 (倍率x) · 上下文`。Codex 使用 xhigh（极高）预设，上游仍发送 max。最新测试结果及限制见[验证记录](references/validation-20261021.md)。
+2026-10-21 更新：CodeBuddy / WorkBuddy 默认仅保留三款，顺序为 DeepSeek、MiniMax、GLM FlashX，默认使用 DeepSeek。Kimi 和 GLM-5.3 仅在用户明确要求时配置。名称格式为 `cb/ 模型名 (倍率x) · 上下文` / `wb/ 模型名 (倍率x) · 上下文`。Claude 使用 MAX，Codex 使用 xhigh（极高），网关发送 max。用户已确认当前功能测试完成；证据及历史限制见[验证记录](references/validation-20261021.md)。
 
 ## 认证与依赖
 
@@ -23,17 +23,15 @@ Claude Desktop Code / Cowork → CC Switch :15721
 
 CodeBuddy 的“只需 key”指认证，不表示 Claude Desktop 原生提供了任意 API key 输入框。WorkBuddy 原生生图、搜索、抓取 MCP 是**可选补充**，另需 WorkBuddy 登录和额度，不属于 CodeBuddy key 附赠能力。
 
-## 当前五模型
+## 默认三个模型
 
-名称使用小写 `cb·` / `wb·`。目录自动刷新、Codex 强度显示与安全运行统计见[配置说明](references/catalog-and-statistics.md)。
+名称使用小写 `cb/ ` / `wb/ ` 前缀。目录自动刷新、Codex 强度显示与安全运行统计见[配置说明](references/catalog-and-statistics.md)。
 
 | 模型（用户指定顺序） | 上游 ID | 倍率 | 目录声明上下文 |
 |---|---|---:|---:|
 | DeepSeek-V4.1-Flash | `deepseek-v4.1-flash` | 0.11x | 1M |
 | MiniMax-M3.1-Flash | `minimax-m3.1-flash` | 0.08x | 1M |
 | GLM-5.3-FlashX | `glm-5.3-flashx` | 0.19x | 1M |
-| GLM-5.3 | `glm-5.3` | 0.69x | 1M |
-| Kimi-K3 | `kimi-k3-2` | 1.62x | 1M |
 
 倍率与上下文于 2026-10-21 核对 WorkBuddy 账号目录，倍率可能随活动及账号变化，非固定 API 价格。此顺序按用户偏好，不是按倍率数值排序。DeepSeek Pro、Space-Bunny、Hy4、Step-5、Xiaomi MiMo 已从当前菜单移除；历史测试保留。DeepSeek 官方菜单仅保留 `deepseek-flash`（V4.1-Flash，声明 1048576 token）。
 
@@ -84,7 +82,9 @@ python scripts/register-ccswitch-desktop.py --provider deepseek
 
 窗口声明、压缩阈值、客户端显示、实际长请求容量是不同证据。每模型设置示例、Cowork 隔离目录和 SDK audit 的判断边界见 [上下文](references/context-window.md)。没有进行满 1M token 负载测试。
 
-示例启用 `effortPolicy: "highest"`：当前五款请求 max。Codex 目录使用 xhigh（极高），避免桌面默认过滤 max 后回落为中；自动同步也保留映射。该策略覆盖手动低档；若希望自由降档，移除策略并配置允许多个档位的目录。请求 200 不证明供应商内部执行了最高计算量，详见 [思考档位](references/reasoning-effort.md)。
+示例启用 `effortPolicy: "highest"`：默认三款请求 max。Codex 目录使用 xhigh（极高），避免桌面默认过滤 max 后回落为中；自动同步也保留映射。该策略覆盖手动低档；若希望自由降档，移除策略并配置允许多个档位的目录。请求 200 不证明供应商内部执行了最高计算量，详见 [思考档位](references/reasoning-effort.md)。
+
+Claude Desktop **Code 新会话**的默认 MAX 使用官方 Windows 用户级策略，不能只凭网关 max 或手写账户保存值判断界面已生效。在当前用户的管理员 PowerShell 中运行 `powershell -File scripts/set-claude-code-effort.ps1`，然后完全退出并重开 Claude；脚本会先备份旧值，只设置 `HKCU\SOFTWARE\Policies\Claude` 下的 `effortLevel=max`。该策略不适用于 Cowork，其界面保存档位需分别配置与验收。
 
 ## 原生工具与插件
 
@@ -101,7 +101,7 @@ python -m unittest discover -s tests -p "test_*.py"
 
 这些离线回归测试不使用真实 key、不消耗模型额度；实际在线/客户端测试覆盖见 [实测记录](references/desktop-validation.md)。[SKILL.md](SKILL.md) 是给 agent 的读取路由。
 
-Codex 新版注册脚本支持三个厂商、模型目录与最高档默认值；配置方法和用户配合验收见 [Codex 应用配置](references/codex-isolation.md)。Codex 应用仍待人工交互验收，不能用 CLI 通过替代。更多记录：[模型菜单](references/model-menu.md)、[CC Switch 内部](references/cc-switch-internals.md)、[限制](references/limits.md)、[排错](references/troubleshooting.md)。
+Codex 新版注册脚本支持三个厂商、模型目录与最高档默认值；配置方法见 [Codex 应用配置](references/codex-isolation.md)。本轮用户已确认客户端功能测试完成，离线回归与接口探针另行记录，不据此推断满 1M 负载能力。更多记录：[模型菜单](references/model-menu.md)、[CC Switch 内部](references/cc-switch-internals.md)、[限制](references/limits.md)、[排错](references/troubleshooting.md)。
 
 ## 来源与许可
 
