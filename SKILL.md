@@ -110,6 +110,10 @@ Claude Code 发厂商名（`claude-sonnet-4-5-20250929`），WorkBuddy 不认。
 
 ## 按需读取参考文件
 
+- [references/requirements.md](references/requirements.md)
+  —— 用户问「哪些软件必须开着 / 为什么连不上 / 开机要启动什么」时读。
+  含依赖速查表、WorkBuddy 必须常驻的原因、适配器自检逻辑、排查顺序。
+
 - [references/why.md](references/why.md)
   —— 用户问「这样配和直接用 WorkBuddy 有什么区别 / 好处在哪 / 值不值得」时读。
   含对照表、四个好处、代价清单、「什么时候不该这么配」。

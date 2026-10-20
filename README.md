@@ -77,6 +77,23 @@ python scripts/register-ccswitch-desktop.py     # Claude Desktop / Cowork
 
 完整对照（含「什么时候不该这么配」）见 [references/why.md](references/why.md)。
 
+## 哪些软件必须开着
+
+| 通路 | WorkBuddy | 适配器 18791 | CC Switch 15721 |
+| --- | --- | --- | --- |
+| DeepSeek → Codex / Claude Code | ✗ | ✗ | ✗ |
+| WorkBuddy → Codex / Claude Code | **✓** | **✓** | ✗ |
+| WorkBuddy → Desktop / Cowork | **✓** | **✓** | **✓** |
+
+⚠️ **WorkBuddy 不是「登录一次就行」，必须保持运行** —— 凭据文件是加密的，
+适配器要调 `WorkBuddy.exe` 拿解密密钥。它被卸载 / 升级换路径 / 重装过，
+适配器就解不开。
+
+⚠️ **CC Switch 是 GUI 托盘应用，自动化会话里拉不起来，必须你自己开。**
+它不运行 = 15721 不监听 = Claude Desktop 连不上。
+
+完整说明和排查顺序见 [references/requirements.md](references/requirements.md)。
+
 ## 最值得知道的三件事
 
 ### 1. 11128 是渠道指纹，不是限流
