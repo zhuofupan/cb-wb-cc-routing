@@ -8,6 +8,7 @@ cb/wb 各五款，按用户指定顺序：DeepSeek-V4.1-Flash 0.11x、MiniMax-M3
 - Node 14 项、Python 8 项回归通过；覆盖菜单顺序、去除 MiMo、新增 FlashX、倍率刷新与名称重复刷新、配置保留及协议转换。
 - cb/wb 各完成一条 FlashX Responses 文本请求和一条 Anthropic 强制函数调用，共四条真实请求通过。未执行模型返回的工具代码；没有完成 FlashX 的识图、工具结果回灌、真实客户端完整验收。
 - 本机两条网关部署重启后，分别核对 `/v1/models` 与 Codex 目录的五款顺序、倍率、1M 和 xhigh；各补测一条 `claude-haiku-5-5` 别名文本请求，统计确认路由到 `glm-5.3-flashx` 且实际 effort=max。本轮共六条真实请求通过。
+- 退出 CC Switch 后已备份并更新两厂商 Desktop 卡片及当前 Desktop profile，核对五款顺序与倍率；保留原有供应商选中状态、认证和其他 Desktop 设置。CC Switch 已重新启动，客户端菜单仍待目视验收。
 - Desktop 别名按字典序分配给上述五款，避免 profile 按别名排序后改变菜单顺序；Codex 使用 0–4 的 priority。别名及真实 ID 同步更新，不能把旧聊天的原生别名当作固定模型身份。
 
 ## 本轮 R3 聊天与落盘记录
