@@ -14,14 +14,14 @@ test('CodeBuddy gateway works without WorkBuddy/DSH and preserves protocol seman
     let raw='';for await(const chunk of req)raw+=chunk;
     received.push(JSON.parse(raw));
     res.writeHead(200,{'Content-Type':'text/event-stream'});
-    for(const value of [{id:'offline-test',choices:[{delta:{role:'assistant',content:'OK'},finish_reason:null}]},{choices:[{delta:{},finish_reason:'stop'}],usage:{prompt_tokens:5,completion_tokens:1}}])res.write(`data: ${JSON.stringify(value)}\n\n`);
+    for(const value of [{id:'offline-test',choices:[{delta:{role:'assistant',content:'OK'},finish_reason:null}]},{choices:[{delta:{},finish_reason:'stop'}],usage:{prompt_tokens:5,completion_tokens:1,prompt_cache_hit_tokens:3}}])res.write(`data: ${JSON.stringify(value)}\n\n`);
     res.end('data: [DONE]\n\n');
   });
   const upstreamPort=await listen(upstream);
   const reservation=createServer();const port=await listen(reservation);await new Promise(r=>reservation.close(r));
   const scratch=await mkdtemp(join(tmpdir(),'routing-regression-'));
   const config=join(scratch,'profile.json');
-  await writeFile(config,JSON.stringify({mode:'codebuddy',port,upstream:`http://127.0.0.1:${upstreamPort}`,followClients:false,effortDefault:'max',effortPolicy:'highest',effortMaxByModel:{'hy4-preview':'high'},exactRoutes:{'claude-opus-5':'hy4-preview','claude-opus-4-8':'minimax-m3.1-flash'},models:[{id:'minimax-m3.1-flash',name:'CB·MiniMax-M3.1-Flash·1M',context:1000000}]}));
+  await writeFile(config,JSON.stringify({mode:'codebuddy',port,upstream:`http://127.0.0.1:${upstreamPort}`,followClients:false,effortDefault:'max',effortPolicy:'highest',effortMaxByModel:{'hy4-preview':'high'},exactRoutes:{'claude-opus-5':'hy4-preview','claude-opus-4-8':'minimax-m3.1-flash'},models:[{id:'minimax-m3.1-flash',name:'cb·MiniMax-M3.1-Flash·1M',context:1000000}]}));
   const entry=fileURLToPath(new URL('../scripts/gateway-server.mjs',import.meta.url));
   const child=spawn(process.execPath,[entry,'--settings',config],{stdio:['ignore','pipe','pipe'],env:{...process.env,IDLE_EXIT_MINUTES:'0'}});
   let log='';child.stdout.on('data',b=>{log+=b});child.stderr.on('data',b=>{log+=b});
@@ -40,13 +40,13 @@ test('CodeBuddy gateway works without WorkBuddy/DSH and preserves protocol seman
   assert.ok(ready,log);
   const call=body=>fetch(root+'/v1/messages',{method:'POST',headers:{Authorization:'Bearer ck_offline_test','Content-Type':'application/json'},body:JSON.stringify({max_tokens:100,stream:false,...body})});
   await t.test('Codex Responses route emits a completed SSE response',async()=>{
-    const r=await fetch(root+'/v1/responses',{method:'POST',headers:{Authorization:'Bearer ck_offline_test','Content-Type':'application/json'},body:JSON.stringify({model:'minimax-m3.1-flash',stream:true,input:'offline Codex probe',reasoning:{effort:'low'}})});
+    const r=await fetch(root+'/v1/responses',{method:'POST',headers:{Authorization:'Bearer ck_offline_test','Content-Type':'application/json'},body:JSON.stringify({model:'minimax-m3.1-flash',stream:true,input:'offline Codex probe',reasoning:{effort:'xhigh'}})});
     assert.equal(r.status,200);const sse=await r.text();assert.match(sse,/event: response.completed/);assert.match(sse,/response.output_text.delta/);assert.equal(received.at(-1).reasoning_effort,'max');
   });
   await t.test('auth is required and catalog exposes prefixed 1M model',async()=>{
     const denied=await fetch(root+'/v1/models');assert.equal(denied.status,401);
     const r=await fetch(root+'/v1/models',{headers:{Authorization:'Bearer ck_offline_test'}});assert.equal(r.status,200);
-    const {data}=await r.json();assert.equal(data[0].display_name,'CB·MiniMax-M3.1-Flash·1M');assert.equal(data[0].context_window,1000000);
+    const {data}=await r.json();assert.equal(data[0].display_name,'cb·MiniMax-M3.1-Flash·1M');assert.equal(data[0].context_window,1000000);
   });
   await t.test('named choice selects only that function and respects highest declared effort',async()=>{
     const tools=['other','chosen'].map(name=>({name,input_schema:{type:'object',properties:{}}}));
@@ -62,5 +62,13 @@ test('CodeBuddy gateway works without WorkBuddy/DSH and preserves protocol seman
     const images=body.messages.flatMap(m=>Array.isArray(m.content)?m.content:[]).filter(c=>c.type==='image_url');
     assert.equal(images.length,1);assert.equal(images[0].image_url.url,`data:image/png;base64,${pixels}`);
     assert.ok(body.messages.some(m=>m.role==='tool'&&String(m.content).includes('image result')));
+  });
+  await t.test('statistics require auth and report effective effort and cached usage without request content', async()=>{
+    assert.equal((await fetch(root+'/v1/stats')).status,401);
+    const r=await fetch(root+'/v1/stats',{headers:{Authorization:'Bearer ck_offline_test'}});
+    const data=await r.json(); const model=data.models['minimax-m3.1-flash'];
+    assert.equal(model.requests,2);assert.equal(model.errors,0);assert.equal(model.last_effort,'max');
+    assert.equal(model.input_tokens,10);assert.equal(model.cached_input_tokens,6);
+    assert.ok(!JSON.stringify(data).includes('offline Codex probe'));
   });
 });

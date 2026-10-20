@@ -1,6 +1,6 @@
 # CC Switch 内部边界
 
-`providers` 以 `(id, app_type)` 区分。`claude` 是 CLI，`claude-desktop` 是 Desktop，不要因同名供应商而混写。一个 Desktop 供应商可在 `meta.claudeDesktopModelRoutes` 内容纳九模型。
+`providers` 以 `(id, app_type)` 区分。`claude` 是 CLI，`claude-desktop` 是 Desktop，不要因同名供应商而混写。一个 Desktop 供应商可在 `meta.claudeDesktopModelRoutes` 内容纳多款模型；当前 cb/wb 各五款。
 
 数据库修改前退出 CC Switch，使用 SQLite backup 备份，保留现有 active/failover 等状态；注册不等于激活。运行路由以 live-state.json 的 apps.claude-desktop.proxy_route 为准。不要盲写 live-state，也不要靠 is_current 单字段猜测实际目标。
 

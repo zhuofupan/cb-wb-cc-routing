@@ -5,6 +5,16 @@ const id = prefix => `${prefix}_${randomUUID().replaceAll('-', '')}`;
 const toolHistory = new Map();
 const names = name => name.replace(/[^a-zA-Z0-9_-]/g, '_');
 
+function customInput(args) {
+  let parsed;
+  try { parsed = JSON.parse(args); }
+  // Some upstreams emit the original freeform tool input directly, despite
+  // receiving the Chat Completions JSON wrapper schema.
+  catch { return args; }
+  if (typeof parsed?.input !== 'string') throw new Error('Custom tool arguments must contain a string input');
+  return parsed.input;
+}
+
 function content(parts) {
   if (typeof parts === 'string') return parts;
   return (parts ?? []).map(p => {
@@ -102,6 +112,41 @@ export async function* parseSSE(stream) {
   }
 }
 
+// Some upstream models duplicate actual tool calls as XML in visible text.
+// Never execute that text. Only the structured tool_calls channel is trusted.
+export async function* parseChatStream(upstream) {
+  const start = '<tool_call><function=', end = '</tool_call>';
+  let pending = '', inside = false, leaked = false, structured = false;
+  for await (const chunk of parseSSE(upstream)) {
+    const delta = chunk.choices?.[0]?.delta;
+    if (delta?.tool_calls?.length) structured = true;
+    if (delta?.content) {
+      pending += delta.content;
+      let visible = '';
+      while (pending) {
+        const marker = inside ? end : start;
+        const at = pending.indexOf(marker);
+        if (at >= 0) {
+          if (!inside) visible += pending.slice(0, at);
+          pending = pending.slice(at + marker.length);
+          inside = !inside;
+          leaked = true;
+        } else {
+          let keep = Math.min(pending.length, marker.length - 1);
+          while (keep && !marker.startsWith(pending.slice(-keep))) keep--;
+          if (!inside) visible += pending.slice(0, pending.length - keep);
+          pending = keep ? pending.slice(-keep) : '';
+          break;
+        }
+      }
+      delta.content = visible;
+    }
+    yield chunk;
+  }
+  if (leaked && !structured) throw new Error('Upstream emitted tool markup without a structured tool call');
+  if (!inside && pending) yield { choices: [{ delta: { content: pending } }] };
+}
+
 export async function convertStream(upstream, model, registry, send) {
   let seq = 0;
   const emit = (type, data = {}) => send(type, { type, sequence_number: seq++, ...data });
@@ -112,7 +157,7 @@ export async function convertStream(upstream, model, registry, send) {
   emit('response.in_progress', { response: { ...response } });
   const calls = new Map();
   let message, messageIndex, reasoning = '', usage, finished = false, finishReason;
-  for await (const chunk of parseSSE(upstream)) {
+  for await (const chunk of parseChatStream(upstream)) {
     if (chunk.error) throw new Error('WorkBuddy returned a stream error');
     if (chunk.code && chunk.code !== 0) throw new Error(`WorkBuddy stream error code ${chunk.code}`);
     if (chunk.usage) usage = chunk.usage;
@@ -157,7 +202,7 @@ export async function convertStream(upstream, model, registry, send) {
     const item = { id: id(custom ? 'ctc' : 'fc'), type: custom ? 'custom_tool_call' : 'function_call',
       status: 'completed', call_id: call.call_id, name: spec.name,
       ...(spec.namespace ? { namespace: spec.namespace } : {}),
-      ...(custom ? { input: JSON.parse(call.args).input } : { arguments: call.args }) };
+      ...(custom ? { input: customInput(call.args) } : { arguments: call.args }) };
     const field = custom ? 'input' : 'arguments';
     emit('response.output_item.added', { output_index: index, item: { ...item, status: 'in_progress', [field]: '' } });
     emit(custom ? 'response.custom_tool_call_input.delta' : 'response.function_call_arguments.delta',
@@ -171,7 +216,7 @@ export async function convertStream(upstream, model, registry, send) {
   }
   response.usage = { input_tokens: usage?.prompt_tokens ?? 0, output_tokens: usage?.completion_tokens ?? 0,
     total_tokens: usage?.total_tokens ?? 0,
-    input_tokens_details: { cached_tokens: usage?.prompt_tokens_details?.cached_tokens ?? 0 },
+    input_tokens_details: { cached_tokens: usage?.prompt_tokens_details?.cached_tokens ?? usage?.prompt_cache_hit_tokens ?? 0 },
     output_tokens_details: { reasoning_tokens: usage?.completion_tokens_details?.reasoning_tokens ?? 0 } };
   response.status = finishReason === 'length' ? 'incomplete' : 'completed';
   if (response.status === 'incomplete') response.incomplete_details = { reason: 'max_output_tokens' };

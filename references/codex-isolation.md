@@ -13,9 +13,9 @@ python scripts/register-ccswitch-providers.py --prepare-only
 python scripts/register-ccswitch-providers.py --provider all
 ```
 
-目录模板默认来自本机 `~/.codex/models_cache.json`，可用 `--template` 指定兼容目录。生成 CB/WB 各九模型、DeepSeek 两模型，沿用 `CB·名称·窗口` / `WB·名称·窗口`。DeepSeek 声明窗口为 1,048,576，Hy4 为 960,000，其他当前腾讯模型为 1,000,000。保留客户端 95% 有效窗口预算以容纳开销；目录和标签不是满窗口负载证明。
+目录模板默认来自本机 `~/.codex/models_cache.json`，可用 `--template` 指定兼容目录。生成 cb/wb 各五模型、DeepSeek 官方一款 Flash，沿用 `cb·名称·窗口` / `wb·名称·窗口`。DeepSeek 声明窗口为 1,048,576，当前五款腾讯模型为 1,000,000。保留客户端 95% 有效窗口预算以容纳开销；目录和标签不是满窗口负载证明。
 
-默认 MiniMax-M3.1-Flash / DeepSeek Flash，effort=max。Hy4、Step-5 的目录最高为 high，腾讯网关也将请求限制为 high。未声明完整 effort 范围的模型仍只有“max 请求获接受”的证据。
+默认 MiniMax-M3.1-Flash / DeepSeek Flash；cb/wb 客户端为 xhigh（极高），网关最高策略发送 max。官方 DeepSeek 直连保持 max。未声明完整 effort 范围的模型仍只有“max 请求获接受”的证据。
 
 脚本备份数据库，保留卡片选中状态、认证数据和无关元数据。模板保留当前配置的插件、MCP、skills、项目与安全设置，不修改活动 `config.toml` 或 `auth.json`。切换前确认 CC Switch 的“非接管切换时保留官方登录”已开启。
 
@@ -33,11 +33,7 @@ DeepSeek 使用官方原生 Responses；腾讯两厂商经过本地网关。关�
 
 ## 用户配合步骤
 
-1. CC Switch **Codex** 页启用 CodeBuddy，重启 Codex，创建本地新会话。选择 `CB·MiniMax-M3.1-Flash·1M`，保持默认思考档位。
-2. 用独立测试目录完成文本、读文件、执行命令、apply_patch、读图，并保存结果。以真实文件和工具返回验收。
-3. 其余模型逐一在新会话重复基础测试；DeepSeek Pro 跳过读图。核对 Hy4 为 high/960k、Step-5 为 high/1M，其余 max/对应窗口。
-4. 用代表模型单独测试搜索插件、网页抓取、一个常用插件/Skill；生图单独记录工具、认证和产物，避免重复付费。
-5. 切 WorkBuddy、DeepSeek，重启后重复。失败时停在该步骤，收集错误，不标记后续项目通过。
+完整逐模型步骤与可直接复制的提示词见 [R3 清单](manual-acceptance-r3.md)。先在 CC Switch 的 Codex 页选择厂商，完全重开 Codex，每款新建聊天。当前 cb/wb 各五款，名称小写，目录只提供 xhigh（极高）；没有 Hy4、Step-5、DeepSeek Pro 或 Space-Bunny。模型不能凭自述证明 UI、实际路由或内部算力。
 
 用户操作后可采集本地证据：
 

@@ -1,8 +1,10 @@
-# ds-wb-cc-routing
+# cb-wb-cc-路由
+
+GitHub 仓库：[`zhuofupan/cb-wb-cc-routing`](https://github.com/zhuofupan/cb-wb-cc-routing)。
 
 用 CC Switch 将 **DeepSeek 官方、CodeBuddy、WorkBuddy** 接入 **Claude Desktop 的 Code / Cowork**，并保留 Claude Code / Codex 的协议适配示例。目标是更换模型与额度来源，同时继续使用客户端的文件工具、Skills、MCP 和插件；不是把厂商聊天界面搬过来。
 
-2026-10-20 更新：每厂商一个 Desktop 供应商，模型在供应商内部选择；CodeBuddy / WorkBuddy 各九模型，显示名为 `CB·模型名·窗口` / `WB·模型名·窗口`。MiniMax 已由 M3 升级为 **M3.1-Flash（1M）**。详细测试覆盖见 [实测记录](references/desktop-validation.md)。
+2026-10-21 更新：CodeBuddy / WorkBuddy 各保留五款，移除 DeepSeek Pro、Space-Bunny、Hy4、Step-5；显示名为 `cb·模型名·窗口` / `wb·模型名·窗口`。Codex 使用 xhigh（极高）预设，上游仍发送 max。修复 MiMo 自定义工具参数及重复工具标记泄漏，增加目录刷新与运行统计。通过 21 项离线回归和 4 条代表性真实请求；完整应用内验收仍待完成，见 [最新验证记录](references/validation-20261021.md) 与 [三批完整测试清单 R3](references/manual-acceptance-r3.md)。
 
 ## 认证与依赖
 
@@ -21,21 +23,19 @@ Claude Desktop Code / Cowork → CC Switch :15721
 
 CodeBuddy 的“只需 key”指认证，不表示 Claude Desktop 原生提供了任意 API key 输入框。WorkBuddy 原生生图、搜索、抓取 MCP 是**可选补充**，另需 WorkBuddy 登录和额度，不属于 CodeBuddy key 附赠能力。
 
-## 当前九模型
+## 当前五模型
+
+名称使用小写 `cb·` / `wb·`。目录自动刷新、Codex 强度显示与安全运行统计见[配置说明](references/catalog-and-statistics.md)。
 
 | 模型 | 上游 ID | 目录声明上下文 |
 |---|---|---:|
-| Hy4 preview | `hy4-preview` | 960000 |
-| Step-5-Preview | `step-5-preview` | 1000000 |
 | DeepSeek-V4.1-Flash | `deepseek-v4.1-flash` | 1000000 |
-| DeepSeek-V4-Pro | `deepseek-v4-pro` | 1000000 |
 | GLM-5.3 | `glm-5.3` | 1000000 |
 | Kimi-K3 | `kimi-k3-2` | 1000000 |
 | MiniMax-M3.1-Flash | `minimax-m3.1-flash` | 1000000 |
 | Xiaomi MiMo-V2.6-Pro | `mimo-v2.6-pro` | 1000000 |
-| Space-Bunny | `space-bunny` | 1000000 |
 
-Pro / Flash 等不同档位分别保留当前版本，不按数字把高能力档静默换成轻量档。目录会更新，安装时应重新核对。DeepSeek 官方当前为 `deepseek-flash`（V4.1-Flash）与 `deepseek-v4-pro`，声明 1048576 token；官方 Pro 不支持图像输入，腾讯同名通路实测可识图。
+当前菜单按用户选择保留五款，DeepSeek Pro、Space-Bunny、Hy4 与 Step-5 已移除；历史测试记录保留。DeepSeek 官方菜单仅保留 `deepseek-flash`（V4.1-Flash，声明 1048576 token）。
 
 ## 启动适配器
 
@@ -84,7 +84,7 @@ python scripts/register-ccswitch-desktop.py --provider deepseek
 
 窗口声明、压缩阈值、客户端显示、实际长请求容量是不同证据。每模型设置示例、Cowork 隔离目录和 SDK audit 的判断边界见 [上下文](references/context-window.md)。没有进行满 1M token 负载测试。
 
-示例启用 `effortPolicy: "highest"`：请求 max，再将 Hy4 / Step-5 限制到目录声明的 high。它会覆盖手动低档；若希望保留手动选择，删除该策略，仅用 `effortDefault` 填空。请求 200 不证明供应商内部执行了最高计算量，详见 [思考档位](references/reasoning-effort.md)。
+示例启用 `effortPolicy: "highest"`：当前五款请求 max。Codex 目录使用 xhigh（极高），避免桌面默认过滤 max 后回落为中；自动同步也保留映射。该策略覆盖手动低档；若希望自由降档，移除策略并配置允许多个档位的目录。请求 200 不证明供应商内部执行了最高计算量，详见 [思考档位](references/reasoning-effort.md)。
 
 ## 原生工具与插件
 
@@ -95,7 +95,7 @@ python scripts/register-ccswitch-desktop.py --provider deepseek
 ## 测试与读取路由
 
 ```powershell
-node --test tests/gateway.test.mjs tests/responses.test.mjs
+node --test tests/gateway.test.mjs tests/responses.test.mjs tests/catalog.test.mjs
 python -m unittest discover -s tests -p "test_*.py"
 ```
 

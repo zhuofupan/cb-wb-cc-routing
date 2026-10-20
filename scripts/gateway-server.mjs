@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { timingSafeEqual } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { cachedModels, mergeSelected, syncCodexCatalog } from './catalog-sync.mjs';
 
 const argv = process.argv.slice(2);
 const flag = name => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
@@ -93,6 +94,24 @@ const IDLE_MS = IDLE_EXIT_MINUTES * 60_000;
 let lastActivity = Date.now();
 let active = 0;
 let count = 0;
+const stats = { started_at: new Date().toISOString(), models: {} };
+let catalogState = { source: 'configured', available_models: 0, new_model_ids: [] };
+let refreshing;
+function refreshCatalog() {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    const upstream = MODE === 'codebuddy'
+      ? await cachedModels(config.catalogCacheDir ?? join(homedir(), '.codebuddy', 'local_storage'))
+      : await client.fetchModels(await store.resolve());
+    config.models = mergeSelected(config.models ?? [], upstream, MODE, config.effortMaxByModel);
+    config.effortMaxByModel = { ...config.effortMaxByModel, ...Object.fromEntries(config.models.map(m => [m.id ?? m.slug, m.effort])) };
+    if (config.codexCatalog) await syncCodexCatalog(resolve(BASE_DIR, config.codexCatalog), config.models, config.effortPolicy === 'highest');
+    catalogState = { source: upstream.length ? (MODE === 'codebuddy' ? 'account-cache' : 'upstream') : 'configured',
+      refreshed_at: new Date().toISOString(), available_models: upstream.length,
+      new_model_ids: upstream.map(m => m.id ?? m.slug).filter(id => id && !config.models.some(m => (m.id ?? m.slug) === id)) };
+  })().finally(() => { refreshing = undefined; });
+  return refreshing;
+}
 if (IDLE_MS > 0) {
   setInterval(() => {
     if (active === 0 && Date.now() - lastActivity >= IDLE_MS) {
@@ -292,9 +311,22 @@ if (FOLLOW && process.env.FOLLOW_CODEX !== '0') {
 }
 
 const server = createServer(async (req, res) => {
+  const started = Date.now();
+  let trackedModel, trackedEffort, trackedUsage, failed = false;
   lastActivity = Date.now();
   active++;
-  res.on('close', () => { active--; lastActivity = Date.now(); });
+  res.on('close', () => {
+    active--; lastActivity = Date.now();
+    if (!trackedModel) return;
+    const model = config.models?.some(m => (m.id ?? m.slug) === trackedModel) ? trackedModel : 'other';
+    const item = stats.models[model] ??= { requests: 0, errors: 0, total_ms: 0, input_tokens: 0, output_tokens: 0, cached_input_tokens: 0 };
+    item.requests++; item.total_ms += Date.now() - started;
+    if (failed || res.statusCode >= 400 || !res.writableEnded) item.errors++;
+    item.last_effort = trackedEffort;
+    item.input_tokens += trackedUsage?.input_tokens ?? 0;
+    item.output_tokens += trackedUsage?.output_tokens ?? 0;
+    item.cached_input_tokens += trackedUsage?.input_tokens_details?.cached_tokens ?? trackedUsage?.cache_read_input_tokens ?? 0;
+  });
   const path = req.url?.split('?')[0];
 
   if (path === '/health' && req.method === 'GET') {
@@ -322,7 +354,9 @@ const server = createServer(async (req, res) => {
   res.on('close', () => { if (!res.writableEnded) controller.abort(); });
 
   try {
+    if (req.method === 'GET' && path === '/v1/stats') return json(res, 200, { ...stats, catalog: catalogState });
     if (req.method === 'GET' && path === '/v1/models') {
+      if (new URL(req.url, 'http://localhost').searchParams.get('refresh') === '1') await refreshCatalog();
       const models = config.models ?? (MODE === 'workbuddy' ? await client.fetchModels(await store.resolve()) : []);
       return json(res, 200, {
         object: 'list',
@@ -332,6 +366,7 @@ const server = createServer(async (req, res) => {
           owned_by: MODE,
           display_name: m.name ?? m.display_name,
           ...(m.context ? { context_window: m.context } : {}),
+          ...(m.effort ? { default_reasoning_level: m.effort } : {}),
         })),
       });
     }
@@ -362,6 +397,7 @@ const server = createServer(async (req, res) => {
       // is honest here, the upstream exposes no counting endpoint.
       if (path.endsWith('/count_tokens')) return json(res, 200, { input_tokens: converted.estimatedInput });
       const payload = JSON.stringify(prepareUpstreamBody(JSON.stringify(converted.request)));
+      ({ model: trackedModel, reasoning_effort: trackedEffort } = JSON.parse(payload));
       const upstream = await chatStreamWithChannelRetry(credential, payload, controller.signal);
       if (!upstream.ok) {
         await dump('last-failed-upstream.json', payload);
@@ -374,12 +410,15 @@ const server = createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
         const heartbeat = setInterval(() => res.write(': keepalive\n\n'), 10000);
         try {
-          await convertAnthropicStream(upstream.response.body, options,
+          const result = await convertAnthropicStream(upstream.response.body, options,
             (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+          trackedUsage = result.usage;
         } finally { clearInterval(heartbeat); }
         res.end();
       } else {
-        json(res, 200, await convertAnthropicStream(upstream.response.body, options, () => {}));
+        const result = await convertAnthropicStream(upstream.response.body, options, () => {});
+        trackedUsage = result.usage;
+        json(res, 200, result);
       }
       return;
     }
@@ -391,6 +430,7 @@ const server = createServer(async (req, res) => {
       await dump('last-responses-upstream.json', JSON.stringify(request, null, 2));
     }
     const payload = JSON.stringify(prepareUpstreamBody(JSON.stringify(request)));
+    ({ model: trackedModel, reasoning_effort: trackedEffort } = JSON.parse(payload));
     const upstream = await chatStreamWithChannelRetry(credential, payload, controller.signal);
     if (!upstream.ok) {
       await dump('last-failed-upstream.json', payload);
@@ -403,9 +443,11 @@ const server = createServer(async (req, res) => {
     try {
       const result = await convertResponsesStream(upstream.response.body, body.model, registry,
         (event, data) => { if (body.stream) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); });
+      trackedUsage = result.usage;
       if (body.stream) res.end(); else json(res, 200, result);
     } finally { clearInterval(heartbeat); }
   } catch (error) {
+    failed = true;
     const message = String(error.message ?? error).slice(0, 300);
     if (!res.headersSent) json(res, 400, { error: { message, type: 'gateway_error' } });
     else {
@@ -418,4 +460,9 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(JSON.stringify({ ready: true, mode: MODE, port: PORT, settings: SETTINGS, models: (config.models ?? []).length, effort: EFFORT_DEFAULT ?? null }));
+  if (config.refreshCatalog !== false) {
+    const refresh = () => refreshCatalog().catch(error => console.error(JSON.stringify({ event: 'catalog_refresh_failed', code: error.code ?? error.name, mode: MODE })));
+    refresh();
+    setInterval(refresh, 3600000).unref();
+  }
 });

@@ -12,7 +12,7 @@
 //   - top_k, metadata, service_tier are ignored
 // Nothing here logs request, response, tool, or credential content.
 import { randomUUID } from 'node:crypto';
-import { parseSSE } from './responses-codec.mjs';
+import { parseChatStream } from './responses-codec.mjs';
 
 const newId = () => `msg_${randomUUID().replaceAll('-', '')}`;
 const newToolId = () => `toolu_${randomUUID().replaceAll('-', '').slice(0, 24)}`;
@@ -279,7 +279,7 @@ export async function convertStream(upstream, { model, estimatedInput }, send) {
     }
   };
 
-  for await (const chunk of parseSSE(upstream)) {
+  for await (const chunk of parseChatStream(upstream)) {
     if (chunk.error) throw new Error('WorkBuddy returned a stream error');
     if (chunk.code && chunk.code !== 0) throw new Error(`WorkBuddy stream error code ${chunk.code}`);
     if (chunk.usage) usage = chunk.usage;
@@ -334,6 +334,7 @@ export async function convertStream(upstream, { model, estimatedInput }, send) {
   const outUsage = {
     input_tokens: usage?.prompt_tokens ?? estimatedInput,
     output_tokens: usage?.completion_tokens ?? 0,
+    cache_read_input_tokens: usage?.prompt_cache_hit_tokens ?? usage?.prompt_tokens_details?.cached_tokens ?? 0,
   };
   const reason = stopReason(finish);
   emit('message_delta', {

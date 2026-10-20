@@ -8,14 +8,14 @@
   "claudeDesktopModelRoutes": {
     "claude-opus-4-8": {
       "model": "minimax-m3.1-flash",
-      "labelOverride": "CB·MiniMax-M3.1-Flash·1M",
+      "labelOverride": "cb·MiniMax-M3.1-Flash·1M",
       "supports1m": false
     }
   }
 }
 ```
 
-CC Switch 把别名、标签写到 `%LOCALAPPDATA%/Claude-3p/configLibrary/` 的 profile；代理将 Claude 别名映射为真实模型 ID。`labelOverride` 控制显示名。WB 使用 `WB·`，CB 使用 `CB·`，全部带目录声明的窗口后缀。每厂商九模型，一个供应商卡片；不为每模型创建供应商。
+CC Switch 把别名、标签写到 `%LOCALAPPDATA%/Claude-3p/configLibrary/` 的 profile；代理将 Claude 别名映射为真实模型 ID。`labelOverride` 控制显示名。WB 使用 `wb·`，CB 使用 `cb·`，全部带目录声明的窗口后缀。每厂商五模型，一个供应商卡片；不为每模型创建供应商。
 
 完整映射以 [desktop_models.py](../scripts/desktop_models.py) 为准。MiniMax 使用 `claude-opus-4-8`，旧 `claude-haiku-4-5` 的 200k 能力上限曾造成错误显示。当前上游是 **M3.1-Flash（1M）**；旧 M3 的 512k 记录不是新型号能力。
 

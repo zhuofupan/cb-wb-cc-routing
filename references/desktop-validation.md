@@ -1,10 +1,12 @@
-# 2026-10-20 验证记录
+# 2026-10-20 历史验证记录
+
+本文保留当时九模型及旧型号的历史证据。当前菜单与最新修复以 [2026-10-21 验证记录](validation-20261021.md) 为准，不把已移除模型继续列为当前可选项。
 
 环境：Windows、CC Switch 4.0.15、Claude Desktop MSIX 2.42304.2.0、会话 SDK 2.1.299、Node 24.15.0。以下为一次账户/版本环境中的结果，不含个人路径、key、登录态、数据库、会话正文或图片签名 URL。
 
 ## 全模型接口与路由
 
-- CodeBuddy / WorkBuddy 当前各九模型：文本连通与图像识别协议诊断通过。WorkBuddy Step-5 首轮 429 排队，后续仅补测该项成功；不是一律缺少图像能力。
+- CodeBuddy / WorkBuddy 当时各九模型：文本连通与图像识别协议诊断通过。WorkBuddy Step-5 首轮 429 排队，后续仅补测该项成功；不是一律缺少图像能力。
 - 官方 DeepSeek Flash 文本和识图通过；Pro 文本通过，本身目录仅声明文本输入，不把“不支持图片”记为配置失败。
 - 两厂商九个菜单别名此前均逐个做过 CC Switch HTTP 路由验证。MiniMax 升级后，两适配器的模型发现和数据库映射已核对；当前 WorkBuddy CC Switch 路由实际返回 minimax-m3.1-flash。
 - 新 MiniMax-M3.1-Flash 在两厂商分别通过文本、识图、强制函数工具调用及 tool_result 回灌。初次强制选择返回 400；修正 Tencent 只接受字符串 tool_choice 后复验通过。

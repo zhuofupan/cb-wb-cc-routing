@@ -15,19 +15,19 @@ VENDORS = {
 
 def catalog(vendor, template):
     rows = MODELS if vendor != 'deepseek' else [
-        ('', 'deepseek-flash', 'DeepSeek-V4.1-Flash', 1048576, 'max'),
-        ('', 'deepseek-v4-pro', 'DeepSeek-V4-Pro', 1048576, 'max')]
+        ('', 'deepseek-flash', 'DeepSeek-V4.1-Flash', 1048576, 'max')]
     models = []
     for priority, (_, slug, label, window, effort) in enumerate(rows):
+        client_effort = 'xhigh' if vendor != 'deepseek' and effort == 'max' else effort
         m = copy.deepcopy(template)
         for key in ['model_messages', 'availability_nux', 'upgrade', 'additional_speed_tiers', 'service_tiers', 'available_access_programs', 'multi_agent_reasoning_effort']:
             m.pop(key, None)
         size = '1M' if window in (1000000, 1048576) else f'{window//1000}k'
-        prefix = {'codebuddy': 'CB·', 'workbuddy': 'WB·', 'deepseek': ''}[vendor]
+        prefix = {'codebuddy': 'cb·', 'workbuddy': 'wb·', 'deepseek': ''}[vendor]
         m.update(slug=slug, display_name=f'{prefix}{label}·{size}', description=f'{vendor}; declared capacity, not a full-window load test',
                  base_instructions='You are a coding assistant. Use the provided tools to complete the user request. Verify results and report failures honestly.',
                  context_window=window, max_context_window=window, effective_context_window_percent=95,
-                 default_reasoning_level=effort, supported_reasoning_levels=[{'effort': e, 'description': e} for e in (['high'] if effort == 'high' else ['high', 'max'])],
+                 default_reasoning_level=client_effort, supported_reasoning_levels=[{'effort': client_effort, 'description': f'Upstream effort: {effort}'}],
                  input_modalities=['text'] if vendor == 'deepseek' and slug == 'deepseek-v4-pro' else ['text', 'image'],
                  supports_search_tool=False, support_verbosity=False, supports_reasoning_summaries=False,
                  default_reasoning_summary='none', prefer_websockets=False, visibility='list', supported_in_api=True, priority=priority,
@@ -55,7 +55,7 @@ def config(vendor, key, path, base=''):
     quote = lambda value: json.dumps(str(value).replace('\\', '/'), ensure_ascii=False)
     return f'''model_provider = "custom"
 model = "{'deepseek-flash' if vendor == 'deepseek' else 'minimax-m3.1-flash'}"
-model_reasoning_effort = "max"
+model_reasoning_effort = "{'max' if vendor == 'deepseek' else 'xhigh'}"
 model_reasoning_summary = "none"
 model_catalog_json = {quote(path)}
 web_search = "disabled"

@@ -33,10 +33,28 @@ OpenAI 官方说明插件可以组合 Skills、MCP 与 hooks；能力和运行�
   "mcpServers": {
     "workbuddy-native-tools": {
       "command": "C:/path/to/node.exe",
-      "args": ["--experimental-strip-types", "C:/path/to/ds-wb-cc-routing/scripts/workbuddy-tools-mcp.mjs"]
+      "args": ["--experimental-strip-types", "C:/path/to/cb-wb-cc-routing/scripts/workbuddy-tools-mcp.mjs"]
     }
   }
 }
 ```
 
 重开 Desktop 后再验工具发现、实际调用和结果；仅 tools/list 不等于功能通过。该 MCP 使用 scripts/local-settings.json 中的 WorkBuddy 安装配置；只有 CodeBuddy key 时不启用它。用户可继续选择其他独立搜索/抓取/生图 MCP，无须绑定这套可选服务。
+
+## 在 Codex 接入相同 MCP
+
+把下面配置合并到用户级 `~/.codex/config.toml`，使用自己的仓库绝对路径和可用的 Node 24。不要覆盖其他 MCP。安装目录必须已有可用的 WorkBuddy local-settings.json、认证源码和依赖。
+
+```toml
+[mcp_servers.workbuddy-native-tools]
+command = "node"
+args = ["--experimental-strip-types", "C:/path/to/cb-wb-cc-routing/scripts/workbuddy-tools-mcp.mjs"]
+startup_timeout_sec = 30
+tool_timeout_sec = 300
+```
+
+完全重开 Codex 后检查工具发现，再实际调用。若用 CC Switch 切换配置，应在生成供应商卡片前保留此 MCP 配置；Codex 注册脚本会保留公共 MCP。已有卡片需同步其 config，避免切换后丢失。工具执行超时给生图等待留出余量，不代表每次请求必定成功。
+
+2026-10-21 本机已验证 Codex CLI 能识别启用，进程初始化及 tools/list 返回三个工具；新接入后的 Codex 应用内调用仍待 R3。此工具不限制聊天厂商，cb/wb 模型都可以发起调用，但使用的是 WorkBuddy 登录和额度。
+
+Codex 官方 `image_gen` 与本 MCP 分开；仅因为模型能调用 MCP，不能推出切换第三方供应商后官方 GPT Image 一定可用。R3 提供两条独立的官方生图探针，不自动改走 WorkBuddy。

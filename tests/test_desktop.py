@@ -7,8 +7,8 @@ def load(name):
 register=load('register-ccswitch-desktop');setup=load('setup-claude-model-routes')
 class DesktopTests(unittest.TestCase):
     def test_models_prefixes_and_latest_id(self):
-        for vendor,prefix in [('codebuddy','CB'),('workbuddy','WB')]:
-            routes=routes_for(vendor);self.assertEqual(len(routes),9)
+        for vendor,prefix in [('codebuddy','cb'),('workbuddy','wb')]:
+            routes=routes_for(vendor);self.assertEqual(len(routes),5)
             self.assertTrue(all(r['labelOverride'].startswith(prefix+'·')for r in routes.values()))
             self.assertTrue(all(r['labelOverride'].endswith(('·1M','·960k'))for r in routes.values()))
             self.assertEqual(routes['claude-opus-4-8']['model'],'minimax-m3.1-flash')
@@ -25,7 +25,7 @@ class DesktopTests(unittest.TestCase):
             conn=sqlite3.connect(db);rows=conn.execute('select settings_config,meta,is_current from providers').fetchall();conn.close()
             self.assertEqual(len(rows),1);cfg,meta,current=rows[0];cfg=json.loads(cfg);meta=json.loads(meta)
             self.assertEqual(current,1);self.assertTrue(meta['retained']);self.assertEqual(cfg['env']['CUSTOM'],'keep');self.assertEqual(cfg['permissions'],{'allow':['Read']});self.assertNotIn('ANTHROPIC_MODEL',cfg['env'])
-            self.assertEqual(len(meta['claudeDesktopModelRoutes']),9);self.assertNotIn('claude_desktop_model_routes',meta)
+            self.assertEqual(len(meta['claudeDesktopModelRoutes']),5);self.assertNotIn('claude_desktop_model_routes',meta)
     def test_examples_match_current_mapping(self):
         for name in ['local-settings.json.example','codebuddy-settings.json.example']:
             doc=json.loads((SCRIPTS/name).read_text(encoding='utf8'));routes=routes_for(doc['mode'])
@@ -40,5 +40,5 @@ class DesktopTests(unittest.TestCase):
             with patch.dict(os.environ,{'CCSWITCH_DB':str(db),'CODEBUDDY_API_KEY':'ck_offline_test'},clear=True),patch.object(register,'ensure_stopped'):
                 register.main(['--provider','codebuddy'])
             conn=sqlite3.connect(db);row=conn.execute('select name,settings_config,meta from providers').fetchone();conn.close()
-            self.assertEqual(row[0],'CodeBuddy');self.assertEqual(json.loads(row[1])['env']['ANTHROPIC_BASE_URL'],'http://127.0.0.1:18792');self.assertEqual(len(json.loads(row[2])['claudeDesktopModelRoutes']),9)
+            self.assertEqual(row[0],'CodeBuddy');self.assertEqual(json.loads(row[1])['env']['ANTHROPIC_BASE_URL'],'http://127.0.0.1:18792');self.assertEqual(len(json.loads(row[2])['claudeDesktopModelRoutes']),5)
 if __name__=='__main__':unittest.main()

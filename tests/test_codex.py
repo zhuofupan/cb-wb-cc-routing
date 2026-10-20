@@ -10,13 +10,15 @@ class CodexTests(unittest.TestCase):
             result=evidence.inspect(p,'TEST-MARKER');self.assertEqual(result['models'],['minimax-m3.1-flash']);self.assertEqual(result['efforts'],['max']);self.assertNotIn('private output',json.dumps(result));self.assertIsNone(evidence.inspect(p,'NOT-THERE'))
     def test_catalog_capacity_effort_and_vision(self):
         template={'model_messages':{'instructions':'official prompt'},'shell_type':'unified_exec','supports_search_tool':True}
-        for vendor,count in [('codebuddy',9),('workbuddy',9),('deepseek',2)]:
+        for vendor,count in [('codebuddy',5),('workbuddy',5),('deepseek',1)]:
             models=module.catalog(vendor,template)['models'];self.assertEqual(len(models),count)
             for m in models:
                 self.assertNotIn('model_messages',m);self.assertEqual(m['context_window'],m['max_context_window']);self.assertFalse(m['supports_search_tool'])
-                self.assertEqual(m['default_reasoning_level'],'high' if m['slug']in ['hy4-preview','step-5-preview']else'max')
-            if vendor=='deepseek':self.assertEqual(models[1]['input_modalities'],['text']);self.assertEqual(models[0]['context_window'],1048576)
-            else:self.assertTrue(all(m['display_name'].startswith('CB·'if vendor=='codebuddy'else'WB·')for m in models))
+                self.assertEqual(m['default_reasoning_level'],'max' if vendor=='deepseek' else 'xhigh')
+                self.assertEqual([level['effort']for level in m['supported_reasoning_levels']],[m['default_reasoning_level']])
+            self.assertFalse({'deepseek-v4-pro','space-bunny','hy4-preview','step-5-preview'} & {m['slug']for m in models})
+            if vendor=='deepseek':self.assertEqual(models[0]['context_window'],1048576)
+            else:self.assertTrue(all(m['display_name'].startswith('cb·'if vendor=='codebuddy'else'wb·')for m in models))
     def test_registration_preserves_selection_and_other_settings(self):
         with sqlite3.connect(':memory:')as conn:
             conn.execute('create table providers(id text,app_type text,settings_config text,meta text,is_current integer)')
@@ -24,7 +26,7 @@ class CodexTests(unittest.TestCase):
             module.register(conn,'codebuddy','ck_test_with_"quotes','D:/folder with spaces/catalog.json')
             cfg,meta,current=conn.execute('select settings_config,meta,is_current from providers').fetchone();cfg=json.loads(cfg);t=tomllib.loads(cfg['config'])
             self.assertEqual(current,1);self.assertEqual(cfg['other'],'keep');self.assertEqual(cfg['auth']['keep'],'official-login-policy');self.assertEqual(json.loads(meta)['custom'],'keep')
-            self.assertFalse(t['model_providers']['custom']['requires_openai_auth']);self.assertEqual(t['model_reasoning_effort'],'max');self.assertNotIn('preferred_auth_method',t)
+            self.assertFalse(t['model_providers']['custom']['requires_openai_auth']);self.assertEqual(t['model_reasoning_effort'],'xhigh');self.assertNotIn('preferred_auth_method',t)
             self.assertEqual(t['model_providers']['custom']['experimental_bearer_token'],'ck_test_with_"quotes')
     def test_common_plugins_and_safety_settings_survive(self):
         base='model = "gpt-example"\nservice_tier = "fast"\napproval_policy = "on-request"\n[plugins.example]\nenabled = true\n[mcp_servers.example]\ncommand = "node"\n[model_providers.custom]\nrequires_openai_auth = true\n'
