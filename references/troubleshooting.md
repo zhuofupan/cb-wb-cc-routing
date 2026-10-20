@@ -108,9 +108,9 @@ system 里没这段）。早先把它判成「网关短时拒绝」是错的。
 
 ## 二分定位套路（下次直接照做）
 
-1. 起适配器时带 `WB_DUMP=1`。
+1. 起当前共享适配器时带 `DUMP=1`；这会保存请求正文，仅在本地诊断使用，不要把 dump 上传到 issue 或仓库。
 2. 复现一次失败请求，得到 `dump-<ISO时间戳>-anthropic.json`（原始 Anthropic 体）
-   + `last-upstream-request.json`（转换后的上游体）。
+   + `last-anthropic-upstream.json`（转换后的上游体）。
    ⚠️ `last-*` 是**单槽**，任何后续请求（含你自己 curl）都会覆盖，所以同时写了带时间戳的副本。
 3. `curl --data-binary @dump-xxx.json` 打 `127.0.0.1:18791/v1/messages` 回放，确认 400。
 4. 逐段拆 **`tools` / `system[i]` / `messages`**，每次只留一块，二分。

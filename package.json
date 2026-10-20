@@ -1,0 +1,12 @@
+{
+  "name": "ds-wb-cc-routing",
+  "version": "1.2.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=24.0.0"},
+  "scripts": {"test": "node --test tests/gateway.test.mjs"},
+  "optionalDependencies": {
+    "@deepseek-ai/dsh-atomic-write": "0.0.1-rc.1",
+    "@deepseek-ai/dsh-home-paths": "0.2.1-rc.2"
+  }
+}

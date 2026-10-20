@@ -45,7 +45,7 @@ CC Switch 点一下回 Anthropic 官方，不用改任何东西。这是「保�
 - **thinking 不回传** —— 多轮工具调用里模型看不到自己上一轮思考，
   这是实际效果上最明显的短板（见 [limits.md](limits.md)）
 - `count_tokens` 是估算，上下文用量条会偏
-- **CC Switch 必须手动开**，它挂了 Claude Desktop 就连不上
+- **CC Switch 必须保持运行**，它挂了 Claude Desktop 就连不上；启动及常驻方式见 [requirements.md](requirements.md)
 - 多一层故障点：适配器 → CC Switch → 上游，任一层挂了都要单独排查
 
 ## 分工边界：模型只决策，软件管其余

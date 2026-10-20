@@ -91,7 +91,7 @@ function toolResultText(content) {
   return content
     .map(block => {
       if (block.type === 'text') return block.text;
-      if (block.type === 'image') return '[image omitted]';
+      if (block.type === 'image') return '[Image attached in the following user message.]';
       return '';
     })
     .join('\n');
@@ -136,6 +136,13 @@ export function toChat(body, resolveModel) {
             tool_call_id: block.tool_use_id,
             content: toolResultText(block.content),
           });
+          // Chat Completions tool messages are text-only. Preserve pixels from
+          // Read/MCP results in the next user message instead of discarding them.
+          if (Array.isArray(block.content)) {
+            for (const part of block.content) {
+              if (part.type === 'image') parts.push(imagePart(part));
+            }
+          }
         }
         // thinking / redacted_thinking never appear on a user turn.
       }
@@ -181,11 +188,18 @@ export function toChat(body, resolveModel) {
   else if (choice?.type === 'tool') toolChoice = { type: 'function', function: { name: choice.name } };
 
   const model = resolveModel(body.model);
+  // Claude Code states its reasoning level as `output_config.effort`
+  // (`{"effort":"high"}` in 2.1.303, max in the picker). Chat Completions has
+  // no such object — the upstream calls the same idea `reasoning_effort`. Not
+  // forwarding it is why "I set it to max in Claude Code" used to end up as the
+  // model's own default: the field simply never left the client.
+  const effort = body.output_config?.effort ?? body.reasoning_effort;
   const request = {
     model,
     messages,
     stream: true,
     max_tokens: body.max_tokens ?? 8192,
+    ...(effort ? { reasoning_effort: effort } : {}),
     ...(body.temperature !== undefined ? { temperature: body.temperature } : {}),
     ...(body.top_p !== undefined ? { top_p: body.top_p } : {}),
     ...(body.stop_sequences?.length ? { stop: body.stop_sequences } : {}),

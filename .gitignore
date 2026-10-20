@@ -16,3 +16,14 @@ node_modules/
 .DS_Store
 Thumbs.db
 *.swp
+
+# Credentials, failed payloads and generated media
+codebuddy-settings.json
+workbuddy-auth.json
+dsh-state/
+dsh-workbuddy-connect/
+generated-images/
+last-*.json
+dump-*.json
+server-*.log
+*.db*

@@ -1,229 +1,111 @@
 # ds-wb-cc-routing
 
-用 **CC Switch** 把 **DeepSeek 官方**与 **WorkBuddy** 接进 **Codex CLI** 与
-**Claude Code / Claude Desktop（Cowork）** 的配置经验与适配器实现。
+用 CC Switch 将 **DeepSeek 官方、CodeBuddy、WorkBuddy** 接入 **Claude Desktop 的 Code / Cowork**，并保留 Claude Code / Codex 的协议适配示例。目标是更换模型与额度来源，同时继续使用客户端的文件工具、Skills、MCP 和插件；不是把厂商聊天界面搬过来。
 
-在 Claude Code 中作为 skill 加载后，按下方读取路由工作。
+2026-10-20 更新：每厂商一个 Desktop 供应商，模型在供应商内部选择；CodeBuddy / WorkBuddy 各九模型，显示名为 `CB·模型名·窗口` / `WB·模型名·窗口`。MiniMax 已由 M3 升级为 **M3.1-Flash（1M）**。详细测试覆盖见 [实测记录](references/desktop-validation.md)。
 
----
+## 认证与依赖
 
-# 写给用户
+| 通路 | 用户提供什么 | 本地依赖 |
+|---|---|---|
+| DeepSeek 官方 | 自己的 API key | Desktop 模型映射使用 CC Switch；推理直接发官方接口 |
+| CodeBuddy | 自己的 `ck_…` API key | CC Switch + 18792 适配器；不需要 WorkBuddy 登录或 DSH |
+| WorkBuddy | 自己的桌面登录态、本地随机令牌 | CC Switch + 18791 适配器 + WorkBuddy 可用安装 + DSH 认证源码 |
 
-## 先说背景：为什么要做这件事
-
-你手上有三套模型能用：
-
-- **官方 Claude** —— Anthropic 的，最贵但最好用
-- **DeepSeek 官方** —— 按量付费，有自己的 API key
-- **WorkBuddy** —— 腾讯的 AI 编程客户端，按月订阅，里面接了一批国产模型
-
-问题在于：**每一套只能在自己的界面里用。** 你用 Claude Code 写代码，就吃不到
-WorkBuddy 的额度；你用 WorkBuddy，就用不了 Claude Code 的 skills 和记忆。
-
-这套配置解决的就是这个问题 —— 把两个第三方上游接进你已经在用的客户端里。
-
-## 配完之后是什么样
-
-原来：
-
-```
-Claude Code ──→ Anthropic 官方（贵）
-Codex       ──→ OpenAI 官方
-WorkBuddy   ──→ 自己的界面，只能用自己家的模型
+```text
+Claude Desktop Code / Cowork → CC Switch :15721
+  ├─ DeepSeek 官方 Anthropic 兼容端点
+  ├─ :18792 CodeBuddy → 腾讯上游（用户 ck key）
+  └─ :18791 WorkBuddy → 腾讯上游（用户登录态）
 ```
 
-配完之后：
+CodeBuddy 的“只需 key”指认证，不表示 Claude Desktop 原生提供了任意 API key 输入框。WorkBuddy 原生生图、搜索、抓取 MCP 是**可选补充**，另需 WorkBuddy 登录和额度，不属于 CodeBuddy key 附赠能力。
 
+## 当前九模型
+
+| 模型 | 上游 ID | 目录声明上下文 |
+|---|---|---:|
+| Hy4 preview | `hy4-preview` | 960000 |
+| Step-5-Preview | `step-5-preview` | 1000000 |
+| DeepSeek-V4.1-Flash | `deepseek-v4.1-flash` | 1000000 |
+| DeepSeek-V4-Pro | `deepseek-v4-pro` | 1000000 |
+| GLM-5.3 | `glm-5.3` | 1000000 |
+| Kimi-K3 | `kimi-k3-2` | 1000000 |
+| MiniMax-M3.1-Flash | `minimax-m3.1-flash` | 1000000 |
+| Xiaomi MiMo-V2.6-Pro | `mimo-v2.6-pro` | 1000000 |
+| Space-Bunny | `space-bunny` | 1000000 |
+
+Pro / Flash 等不同档位分别保留当前版本，不按数字把高能力档静默换成轻量档。目录会更新，安装时应重新核对。DeepSeek 官方当前为 `deepseek-flash`（V4.1-Flash）与 `deepseek-v4-pro`，声明 1048576 token；官方 Pro 不支持图像输入，腾讯同名通路实测可识图。
+
+## 启动适配器
+
+需要 Node.js 24（本次实测版本 24.15.0）、Python 3 和 Windows PowerShell。
+
+CodeBuddy 可独立安装，不必安装 WorkBuddy：
+
+```powershell
+Copy-Item scripts/codebuddy-settings.json.example scripts/codebuddy-settings.json
+powershell -File scripts/start-workbuddy.ps1 -SettingsPath scripts/codebuddy-settings.json
 ```
-Claude Code ──┬─→ Anthropic 官方（随时切回）
-              ├─→ DeepSeek 官方
-              └─→ WorkBuddy 的模型
 
-Codex       ──┬─→ OpenAI / DeepSeek 官方
-              └─→ WorkBuddy 的模型
+WorkBuddy 路由另需 DSH 的认证模块：
+
+```powershell
+git clone https://github.com/corrinehu/dsh-workbuddy-connect scripts/dsh-workbuddy-connect
+# 本次验证的认证源码版本；升级认证模块后重新验收。
+git -C scripts/dsh-workbuddy-connect checkout 9e2d2559119e93113097554adacc52d62aef7882
+npm.cmd install --omit=dev
+Copy-Item scripts/local-settings.json.example scripts/local-settings.json
+# 编辑 local-settings.json：填写自己的 WorkBuddy.exe 路径与随机 secret。
+powershell -File scripts/start-workbuddy.ps1
 ```
 
-**你的代码、会话、记忆都还在 Claude Code / Codex 里，只是背后的模型换了。**
-在菜单里点一下就切，不用重开窗口、重贴上下文。
+前台诊断也可运行 `node --experimental-strip-types scripts/gateway-server.mjs --settings scripts/codebuddy-settings.json`。常驻需使用自己的计划任务/进程管理器；验证端口实际存活，不能把一次 Start-Process 成功等同于会话退出后仍常驻。配置示例关闭按 CLI 活跃状态自动退出，适用于只使用 Desktop 的场景。
 
-## 四条通路，以及为什么要分
+认证依赖是可选依赖，仅 WorkBuddy/MCP 使用；CodeBuddy 不需要执行上述 clone 或 npm 安装。WorkBuddy 如提示缺少 `@deepseek-ai/dsh-atomic-write` 或 `@deepseek-ai/dsh-home-paths`，应确认两项依赖安装成功，不能把模块缺失当成账号认证失败。
 
-| 通路 | 需要装什么 | 为什么 |
-| --- | --- | --- |
-| DeepSeek → Codex | 什么都不用 | DeepSeek 官方提供了兼容端点，直接连 |
-| DeepSeek → Claude Code | 什么都不用 | 同上 |
-| WorkBuddy → Codex | 18791 适配器 | 见下方说明 |
-| WorkBuddy → Claude Code | 18791 适配器 | 同上 |
-| WorkBuddy → Desktop / Cowork | 适配器 + CC Switch | Desktop 的请求要先经 CC Switch 转发 |
+## 注册 Desktop 供应商
 
-**DeepSeek 为什么不用适配器**：它给你一个标准 API key，任何客户端填进去就能用。
+先从托盘退出 CC Switch。脚本只注册/更新对应供应商，会备份数据库，保留已有供应商的选中状态，不为每模型建卡片，也不直接修改 live-state。
 
-**WorkBuddy 为什么必须适配器**：它没有给外部用的 API key。你能用的是**桌面版的
-登录态** —— 就是你登录 WorkBuddy 客户端后，它存在硬盘上的那个登录凭证。
-这个凭证：
+```powershell
+# 先在当前终端安全设置自己的 CODEBUDDY_API_KEY、WORKBUDDY_LOCAL_SECRET 或 DEEPSEEK_API_KEY。
+# 不要把真实值写入仓库、截图或 issue。
+python scripts/register-ccswitch-desktop.py --provider codebuddy
+python scripts/register-ccswitch-desktop.py --provider workbuddy
+python scripts/register-ccswitch-desktop.py --provider deepseek
+```
 
-- 是**加密**的，要用 WorkBuddy 自己的程序才能解开
-- 会**过期**，需要定期刷新
-- WorkBuddy 桌面版**必须开着**，否则解不开
+默认数据库为 `~/.cc-switch/cc-switch.db`，可用 `CCSWITCH_DB` 指定位置。只需更新已存在的腾讯模型菜单时运行 `python scripts/setup-claude-model-routes.py --provider all`。如果已有不同 ID 的 DeepSeek 供应商，应更新已有条目，避免重复注册。
 
-适配器（一个跑在 `127.0.0.1:18791` 的小程序）就是干这个的：读那个凭证、
-解密、拿你的身份去请求 WorkBuddy 的服务器。**它不拦截任何网络流量**，
-只是读文件。
+打开 CC Switch，在 **Claude Desktop** 页启用相应厂商，再完全退出并打开 Claude Desktop。保持 profile 可写；`meta.claudeDesktopModelRoutes`、`labelOverride`、`supports1m` 必须使用 camelCase。旧版文档根据 snake_case 搜索误判“不支持映射”，并建议只读 profile，已纠正。
 
-> ⚠️ 这意味着适配器是「非官方」的 —— 它复现了 WorkBuddy 官方客户端的登录方式。
-> 用的是你自己的账号和额度，但 WorkBuddy 一升级，适配器可能就失效。
+## 上下文与最高思考
 
-## 图什么，代价是什么
+窗口声明、压缩阈值、客户端显示、实际长请求容量是不同证据。每模型设置示例、Cowork 隔离目录和 SDK audit 的判断边界见 [上下文](references/context-window.md)。没有进行满 1M token 负载测试。
 
-**好处**：
+示例启用 `effortPolicy: "highest"`：请求 max，再将 Hy4 / Step-5 限制到目录声明的 high。它会覆盖手动低档；若希望保留手动选择，删除该策略，仅用 `effortDefault` 填空。请求 200 不证明供应商内部执行了最高计算量，详见 [思考档位](references/reasoning-effort.md)。
 
-1. **换模型不用换工作现场** —— 同一个窗口里点一下菜单，上下文都还在
-2. **一套额度跑三个壳** —— WorkBuddy 的订阅能在 Codex 和 Claude Code 里用
-3. **能用 Claude Code 的生态** —— skills、hooks、记忆全都还在
-4. **随时能退回官方** —— 上游挂了，CC Switch 点一下就回 Anthropic
+## 原生工具与插件
 
-**代价**：
+优先使用 Claude / Codex 自带工具和已安装插件。模型负责选择工具，客户端负责文件、命令、MCP 执行。本地函数协议通过，不代表全部官方服务端能力自动可用。
 
-- 多养一层适配器，WorkBuddy 升级可能要跟着修
-- **模型的思考过程不保留** —— 多轮工具调用时，模型看不到自己上一轮怎么想的，
-  这是实际效果上最明显的短板
-- **CC Switch 必须手动开** —— 它是托盘程序，脚本拉不起来
-- 多一层故障点，出问题要逐层排查
+本机 Desktop Code 内置 WebSearch 曾因参数不兼容失败，已修复通用强制函数选择参数；但未把该修复冒充 WebSearch 已复验通过。内置 WebFetch 曾因 claude.ai 域名检查失败。可选 WorkBuddy MCP 的搜索/抓取在两个 Desktop 模式真实调用成功，但它不是原生工具已修好的证明。插件机制、认证边界与生图安装见 [工具与插件](references/tools-and-plugins.md)。
 
-完整对照（含「什么时候不该这么配」）见 [`references/why.md`](references/why.md)。
+## 测试与读取路由
 
-## 开始之前：哪些软件必须开着
+```powershell
+node --test tests/gateway.test.mjs
+python -m unittest discover -s tests -p "test_*.py"
+```
 
-| 你要用的通路 | WorkBuddy | 适配器 18791 | CC Switch 15721 |
-| --- | --- | --- | --- |
-| 只用 DeepSeek | ✗ | ✗ | ✗ |
-| WorkBuddy → Codex / Claude Code | ✓ | ✓ | ✗ |
-| WorkBuddy → Desktop / Cowork | ✓ | ✓ | ✓ |
+这些离线回归测试不使用真实 key、不消耗模型额度；实际在线/客户端测试覆盖见 [实测记录](references/desktop-validation.md)。[SKILL.md](SKILL.md) 是给 agent 的读取路由。
 
-两个最容易出错的点：
-
-- **WorkBuddy 不是「登录一次就行」**，必须保持**在运行**。它一旦被卸载、
-  升级换了安装路径、或者重装过，适配器就解不开凭证了。
-- **CC Switch 必须你自己启动**。它是 GUI 托盘程序，脚本或自动化会话里启动的
-  进程会被清理掉，表现为 Claude Desktop 突然连不上模型。
-
-## 自己动手配的步骤
-
-1. 改 `scripts/local-settings.json` —— 填 `secret`（自己生成一串随机字符）
-   和 `electron`（WorkBuddy.exe 的完整路径）
-2. 跑 `powershell -File scripts/start-workbuddy.ps1` 启动适配器
-3. **关掉 CC Switch**，再跑三个 `register-ccswitch-*.py` 注册条目
-4. 打开 CC Switch，**在界面里点卡片切换**（直接改数据库不生效）
-
-完整命令见下方「给 AI 的工作说明」里的安装一节，或直接用 agent 帮你配。
-
-## 常见问题
-
-**配错了怎么恢复？**
-所有脚本都是幂等的，重跑就行。想彻底恢复，在 CC Switch 界面切回官方 provider。
-
-**会不会花额外的钱？**
-不会。用的都是你自己的 key 和订阅额度，没有中间商。
-
-**安不安全？**
-适配器只监听 `127.0.0.1`（只有本机能连），有随机令牌保护，不记录请求内容。
-但它读的是你的登录凭证，且属于非官方方式，自己判断是否接受。
-
-**三个必踩的坑是什么？**
-11128 错误码的三个来源（渠道指纹、system 里的 CLI 身份句、新会话首轮追加的
-「反馈」句），以及模型菜单的真正控制点。这些细节在 [`SKILL.md`](SKILL.md) 和
-[`references/troubleshooting.md`](references/troubleshooting.md) 里。
-
-**模型的「智能度」怎么调？**
-就是上游的 `reasoning_effort`（`low`/`medium`/`high`/`xhigh`/`max`）。它有三个落点：
-Codex 模型目录的默认档、Codex provider 的配置、以及适配器的 `effortDefault`
-（Claude Code 根本不发这个字段，得由适配器补）。本仓库默认全部调到 **`max`**，
-且只在请求没写的时候补位 —— 在 Codex 里手动选低档依然生效。
-实测与改法见 [`references/reasoning-effort.md`](references/reasoning-effort.md)。
-
-**上下文窗口为什么只有 200k？**
-上游给的是 1M，但 Claude Code 对不认识的模型一律按 200k 规划，并提前压缩。
-在 `~/.claude/settings.json` 的 `env` 里加 `"CLAUDE_CODE_MAX_CONTEXT_TOKENS": "1000000"`
-即可（实测 200000 → 1000000）。注意它是全局值，换到窗口更小的模型要跟着降。
-见 [`references/context-window.md`](references/context-window.md)。
+旧的 Codex / Claude CLI 注册脚本仍保留供参考，不能把 CLI 通过视为 Desktop 通过。更多记录：[模型菜单](references/model-menu.md)、[CC Switch 内部](references/cc-switch-internals.md)、[限制](references/limits.md)、[排错](references/troubleshooting.md)、[Codex 隔离](references/codex-isolation.md)。
 
 ## 来源与许可
 
-- DSH 插件（WorkBuddy 认证）：https://github.com/corrinehu/dsh-workbuddy-connect （MIT）
-- 官方 DeepSeek Codex 指南：https://api-docs.deepseek.com/quick_start/agent_integrations/codex/
-- 本仓库：MIT
-
-
-# 给 AI 的工作说明
-
-## 读取路由
-
-先读 [`SKILL.md`](SKILL.md)，再按任务挑参考文件。
-
-| 场景 | 读 |
-| --- | --- |
-| 全部 | [`SKILL.md`](SKILL.md) —— 四条通路、四个必踩的坑、配置顺序 |
-| 报 11128 / 11133 / 超时 / `000` | [`references/troubleshooting.md`](references/troubleshooting.md) |
-| 调「智能度 / 推理档位」、Claude Code 里想得比 Codex 浅 | [`references/reasoning-effort.md`](references/reasoning-effort.md) |
-| 问「上下文只有 200k / 窗口怎么开到最大」 | [`references/context-window.md`](references/context-window.md) |
-| 改 Desktop 模型菜单、菜单项重复 | [`references/model-menu.md`](references/model-menu.md) |
-| 问「哪些软件必须开着 / 为什么连不上」 | [`references/requirements.md`](references/requirements.md) |
-| 问「有什么好处 / 跟直接用有什么差别」 | [`references/why.md`](references/why.md) |
-| 要写 CC Switch 数据库、`live-state` 不一致 | [`references/cc-switch-internals.md`](references/cc-switch-internals.md) |
-| Codex 报 model not supported with ChatGPT account | [`references/codex-isolation.md`](references/codex-isolation.md) |
-| 想知道没实现什么，别误以为支持 | [`references/limits.md`](references/limits.md) |
-
-## 硬约束
-
-1. **注册脚本必须在 CC Switch 关闭时运行**，否则写入被覆盖。
-2. **切换 provider 只能在 CC Switch 界面点**。改库只注册条目，`live-state.json` 不认。
-3. **CC Switch 是 GUI 托盘应用**，`Start-Process` 起的进程会随会话被清理。
-   改完 Desktop 配置后必须提示用户自己开。
-4. **直连 18791 必须带 `--noproxy '*'`**，否则被系统代理吃掉，表现为超时 / `000`。
-   认证头是 `Authorization: Bearer`，**不是** `x-api-key`。
-5. **`~/.claude/settings.json` 的 `env` 优先于进程环境变量**。要覆盖只能用
-   `claude --settings <临时文件>`，`export` 会被旧配置盖掉。
-6. **验证要真跑 `claude -p` / `codex`**，curl 模拟不算；报告结论时区分
-   直连适配器与真实客户端验证。
-
-## 排查顺序
-
-模型不响应，从上往下：
-
-1. `curl -s --noproxy '*' http://127.0.0.1:18791/health`
-2. `tasklist | findstr WorkBuddy` —— 桌面版必须可运行（解密要调它）
-3. `netstat -ano | findstr 15721` —— 仅 Desktop/Cowork
-4. 看 `config.toml` **活跃** provider 的 `base_url`，或 `settings.json` 的 `ANTHROPIC_BASE_URL`
-
-只看**活跃** provider —— `[model_providers.*]` 段会长期留在配置里，
-全文搜 `127.0.0.1:18791` 恒为真。
-
-## 分工前提
-
-改任何东西之前先认清边界，否则会找错层。
-
-**大模型只做单步决策；Agent 软件负责循环、上下文工程、harness、prompt 工程。**
-
-| | 负责 |
-| --- | --- |
-| 大模型 | 读此刻给的 token，决定下一步：输出文本，还是调哪个工具、什么参数 |
-| Agent 软件 | 循环（结果塞回再问）· 上下文工程（发什么）· harness（真执行、错误、权限、超时）· prompt 工程（system prompt 内容） |
-
-两个容易搞反的点：
-
-- **prompt 工程是软件的活儿。** 换模型，system prompt 与工具定义一个字都不变，
-  变的只是决策准不准。
-- **工具执行始终在客户端。** `Read`/`Write`/`Edit`/`Bash` 由 Codex / Claude Code
-  自己跑，模型只决定读哪个文件、写什么。换模型换的是**决策质量**，不是执行机制。
-
-## 内容边界
-
-- 本仓库**不含密钥**。新增脚本一律从环境变量读，用占位符。
-- 不要把真实 `secret` / `sk-` key / 主机绝对路径写进任何文件。
-
-## 安装
-
-```bash
-ln -s "$(pwd)" ~/.claude/skills/ds-wb-cc-routing     # Claude Code
-# 或复制进 CC Switch 的 skills 目录
-```
+- DSH 认证源码：[corrinehu/dsh-workbuddy-connect](https://github.com/corrinehu/dsh-workbuddy-connect)（MIT，另行安装）。
+- [DeepSeek 模型目录](https://api-docs.deepseek.com/api/list-models/)、[思考模式](https://api-docs.deepseek.com/guides/thinking_mode/)。
+- [CC Switch Desktop 文档](https://github.com/farion1231/cc-switch/blob/main/docs/user-manual/en/2-providers/2.6-claude-desktop.md)。
+- 本仓库 MIT。只提交源码、占位符模板及脱敏结论，不提交登录态、数据库、失败请求正文、签名图片 URL 或个人日志。

@@ -1,96 +1,32 @@
-# 上下文窗口：为什么 Claude Code 只给你 200k、怎么开到最大
+# 上下文：声明、客户端规划与真实容量
 
-## 现象：上游说 1M，Claude Code 只认 200k
+1M 通常约一百万 token，不等于一百万汉字。腾讯当前多数所选模型为 1000000，Hy4 为 960000；DeepSeek 官方为 1048576。MiniMax-M3.1-Flash 为 1000000，旧 M3 为 512000，不可混用。
 
-上游的模型元数据里写得很清楚（`GET /v1/models`、`contextWindow` 字段）：
+## Code 模式
 
-```
-deepseek-v4.1-flash   1,000,000
-glm-5.3               1,000,000
-space-bunny           1,000,000
-hy4-preview             960,000
-minimax-m3-pay          512,000
-```
-
-但 Claude Code 对**不认识的模型**一律按 **200k** 规划上下文，并据此提前压缩。
-实测（`claude -p … --output-format json` 的 `modelUsage`）：
+当前 SDK 支持逐别名 `modelSettings`。在用户 `~/.claude/settings.json` 合并（不要覆盖其他配置）：
 
 ```json
-{"modelUsage":{"deepseek-v4.1-flash":{"contextWindow":200000,"maxOutputTokens":32000}}}
-```
-
-同时 stderr 会先吐一行 `[claude-code:unrecognized_model] {"model":"deepseek-v4.1-flash"}` ——
-那行就是判据：模型 id 不在它内置的能力表里。
-
-## 唯一的开关：`CLAUDE_CODE_MAX_CONTEXT_TOKENS`
-
-放在 `~/.claude/settings.json` 的 `env` 里（CC Switch 的 Claude 页条目也是写这里）：
-
-```json
-"env": {
-  "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "1000000"
+{
+  "modelSettings": {
+    "claude-opus-5": {"autoCompactWindow": 960000, "maxEffortLevel": "high"},
+    "claude-opus-4-8": {"autoCompactWindow": 1000000, "maxEffortLevel": "max"}
+  }
 }
 ```
 
-实测效果（同一模型、同一句 prompt，只改这一个变量）：
+Code 实际界面曾验证 Hy4 显示 960k、旧 M3 经别名修正后显示 512k；当前 M3.1-Flash 配置更新为 1M，代理路由与模型发现已验证。没有做满窗口负载。当前 autoCompactWindow 配置上限为 1000000，因此不宣称使用了 DeepSeek 官方全部 1048576。
 
-| 设置 | `modelUsage.contextWindow` |
-| --- | --- |
-| 不设 | 200000 |
-| `CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT=1` | 200000（**无效**，别被名字骗） |
-| `CLAUDE_CODE_MAX_CONTEXT_TOKENS=1000000` | **1000000** |
+早期 CLI 用全局 `CLAUDE_CODE_MAX_CONTEXT_TOKENS` 解决未知模型回退 200k，但全局值不能当作逐模型安全配置。不要因一个模型支持 1M 就给所有模型填同一数值；不要关闭自动压缩来制造“满窗口”。
 
-⚠️ `~/.claude/settings.json` 的 `env` **优先于进程环境变量**。测的时候要用
-`claude --settings <临时文件>`，否则你 `export` 的值会被旧配置盖掉，
-表现为「改了没反应」。
+## Cowork 模式
 
-## 两个不要搞混的数
+本机 Windows host harness 使用每会话隔离的 `.claude` 配置目录，不等同于 Code 的全局目录。曾尝试同步模型设置，文件写入成功但不能据此宣称加载、压缩策略已通过；未把这个试验同步器发布为默认修复。
 
-- **窗口**（`contextWindow`）可以用上面的变量放大。
-- **单次输出上限**（`maxOutputTokens`）**放不大**：`CLAUDE_CODE_MAX_OUTPUT_TOKENS`
-  会被内置能力表的 `upperLimit` 夹住（不认识的模型 = 32000）。硬设 128000 也没用，
-  它读回来还是 32000。这是客户端的能力表，不是配置能改的东西。
+旧 MiniMax-M3 会话 audit 曾报告 contextWindow=1000000，尽管模型目录为 512000。该字段只是 SDK 报告值，不能单凭它证明上游容量、自动压缩阈值或满载成功；标签也不构成证据。Cowork 前端实际返回 Unknown skill: autocompact，不能照搬 CLI 命令。
 
-## 风险：设 1M 是「按最大声明」，不保证每个模型真有 1M
+## 验证口径
 
-`CLAUDE_CODE_MAX_CONTEXT_TOKENS` 是**全局**的，不区分模型。所以：
+分别保存：目录声明、最终配置、Code 显示、Cowork 会话结果、实际长请求结果。不要把 CLI JSON 当成 Desktop 测试，也不要把一次短请求的 1M 报告称为满 1M 负载验证。输入、输出、工具结果和图片占用都应留在预算内。
 
-| 模型 | 真实窗口 | 设 1M 后 |
-| --- | --- | --- |
-| deepseek-v4.1-flash / v4-pro / glm-5.3 / kimi-k3-2 / step-5-preview / mimo / space-bunny | 1,000,000 | 正好 |
-| hy4-preview | 960,000 | 超 40k 才出问题 |
-| **minimax-m3-pay** | **512,000** | **长会话会在 512k 附近被上游顶回来** |
-
-真要长期用 `minimax-m3-pay`，把这个值降到 `512000`；用 `hy4-preview` 降到 `960000`。
-**换成别的上游（DeepSeek 官方等）时也要跟着改** —— 它不认识你的模型，
-一样按 200k 算，除非你给一个匹配的值。
-
-## Codex 侧：本来就是最大，别多此一举
-
-Codex 的窗口来自模型目录，不由客户端猜：
-
-```jsonc
-{ "slug": "deepseek-v4.1-flash",
-  "context_window": 1000000,          // = 上游声明的真实窗口
-  "max_context_window": 1000000,
-  "effective_context_window_percent": 95,
-  "auto_compact_token_limit": null }
-```
-
-`context_window` 已经是上游最大值，**不需要**再设 `model_context_window`
-（那是全局覆盖，会让小窗口模型跟着一起超）。`effective_context_window_percent: 95`
-是 Codex 计划使用的比例（1M × 95% = 950k），留 5% 给输出与估算误差 ——
-**不建议为了「全要最大」把它改成 100**：输入顶到窗口上限、输出一加上去就越界了，
-换来的只有 50k，代价是随机的 400。
-
-## 验证命令
-
-```bash
-# 窗口看 modelUsage.contextWindow
-claude -p "reply with exactly OK" --output-format json </dev/null \
-  | grep -o '"contextWindow":[0-9]*,"maxOutputTokens":[0-9]*'
-
-# Codex 的目录口径（别只看源文件，看渲染结果）
-codex debug models -c model_catalog_json="<绝对路径>" \
-  | python -c "import json,sys; [print(m['slug'], m['context_window'], m.get('effective_context_window_percent')) for m in json.load(sys.stdin)['models']]"
-```
+Codex 的模型目录及 effective_context_window_percent 是另一套规划；保留客户端预留，不为“最大”盲目改为 100%。

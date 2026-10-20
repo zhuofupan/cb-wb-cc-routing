@@ -1,10 +1,17 @@
 {
+  "mode": "workbuddy",
   "port": 18791,
   "electron": "C:/path/to/WorkBuddy.exe",
   "secret": "YOUR_LOCAL_SECRET",
   "model": "deepseek-v4.1-flash",
   "fastModel": "deepseek-v4.1-flash",
   "effortDefault": "max",
+  "effortPolicy": "highest",
+  "effortMaxByModel": {
+    "hy4-preview": "high",
+    "step-5-preview": "high"
+  },
+  "followClients": false,
   "exactRoutes": {
     "claude-opus-5": "hy4-preview",
     "claude-opus-5-5": "step-5-preview",
@@ -12,10 +19,56 @@
     "claude-sonnet-5-5": "deepseek-v4-pro",
     "claude-haiku-5": "glm-5.3",
     "claude-haiku-5-5": "kimi-k3-2",
-    "claude-haiku-4-5": "minimax-m3-pay",
-    "claude-haiku-4-5-20251001": "minimax-m3-pay",
+    "claude-opus-4-8": "minimax-m3.1-flash",
     "claude-fable-5": "mimo-v2.6-pro",
     "claude-fable-5-1": "space-bunny"
   },
-  "modelRoutes": []
+  "modelRoutes": [],
+  "models": [
+    {
+      "id": "hy4-preview",
+      "name": "WB·Hy4 preview·960k",
+      "context": 960000
+    },
+    {
+      "id": "step-5-preview",
+      "name": "WB·Step-5-Preview·1M",
+      "context": 1000000
+    },
+    {
+      "id": "deepseek-v4.1-flash",
+      "name": "WB·Deepseek-V4.1-Flash·1M",
+      "context": 1000000
+    },
+    {
+      "id": "deepseek-v4-pro",
+      "name": "WB·Deepseek-V4-Pro·1M",
+      "context": 1000000
+    },
+    {
+      "id": "glm-5.3",
+      "name": "WB·GLM-5.3·1M",
+      "context": 1000000
+    },
+    {
+      "id": "kimi-k3-2",
+      "name": "WB·Kimi-K3·1M",
+      "context": 1000000
+    },
+    {
+      "id": "minimax-m3.1-flash",
+      "name": "WB·MiniMax-M3.1-Flash·1M",
+      "context": 1000000
+    },
+    {
+      "id": "mimo-v2.6-pro",
+      "name": "WB·Xiaomi MiMo-V2.6-Pro·1M",
+      "context": 1000000
+    },
+    {
+      "id": "space-bunny",
+      "name": "WB·Space-Bunny·1M",
+      "context": 1000000
+    }
+  ]
 }
