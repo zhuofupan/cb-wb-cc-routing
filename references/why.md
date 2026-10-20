@@ -18,8 +18,8 @@
 
 ### 1. 换模型不用换工作现场
 
-同一份代码、同一段对话，觉得 DeepSeek 慢了就切到 WorkBuddy 的 `hy4-preview`，
-不用重开窗口、重贴上下文。
+同一份代码、同一段对话，觉得当前模型不合适就切到另一个 —— 不用重开窗口、
+重贴上下文。
 
 那 9 项模型菜单（见 [model-menu.md](model-menu.md)）就是为了这一个目的 ——
 让「换上游」变成下拉框里点一下。
@@ -32,7 +32,7 @@ WorkBuddy 的额度原来只在 WorkBuddy 里能用。现在 Codex 和 Claude Co
 ### 3. 能用 Claude Code 的生态
 
 WorkBuddy 那边没有 skills / hooks / subagent。这条通路让 WorkBuddy 的额度
-能跑在已经调教好的 Claude Code 环境里。
+能跑在已经调教好的 Claude Code 环境里 —— 记忆、约定、校验脚本全都还在。
 
 ### 4. 失败能退回官方
 
@@ -48,7 +48,9 @@ CC Switch 点一下回 Anthropic 官方，不用改任何东西。这是「保�
 - **CC Switch 必须手动开**，它挂了 Claude Desktop 就连不上
 - 多一层故障点：适配器 → CC Switch → 上游，任一层挂了都要单独排查
 
-## 一个容易被忽略的点：工具执行始终是客户端
+## 分工边界：模型只决策，软件管其余
+
+**大模型只做单步决策；Agent 软件负责循环、上下文工程、harness、prompt 工程。**
 
 不管后面接的是哪个模型，`Read` / `Write` / `Edit` / `Bash` 这些工具都是
 **Codex / Claude Code 进程自己在跑**。模型只负责*决定*读哪个文件、写什么内容，
@@ -61,6 +63,9 @@ CC Switch 点一下回 Anthropic 官方，不用改任何东西。这是「保�
 
 **推论**：换模型换的是**决策质量**，不是执行机制。写记忆、改文件的质量
 取决于当前选中谁在做决策 —— 格式对但内容走偏的内存，客户端会照单执行。
+
+完整分工表与「prompt 工程是软件的活儿」见仓库 README 的
+「大模型和 Agent 软件，各干什么」一节。
 
 ## 什么时候不该这么配
 
