@@ -62,6 +62,55 @@ function json(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
+// 11128 is not always the client's fault. The gateway rejects well-formed
+// payloads for short windows — documented upstream as "偶发瞬时拒绝 ... 通常几分钟
+// 内自行恢复，避免高频重试" — and that is indistinguishable from a real channel
+// rejection at this layer. One retry after a pause turns such a window into one
+// slow turn instead of a red bubble in the desktop app; if the second attempt
+// fails the error goes out untouched, so a genuine payload problem still shows.
+const TRANSIENT_CHANNEL_ERROR = /"code"\s*:\s*"?11128/;
+const CHANNEL_RETRY_MS = 2500;
+async function chatStreamWithChannelRetry(credential, payload, signal) {
+  const first = await client.chatStream(credential, payload, signal);
+  if (first.ok || !TRANSIENT_CHANNEL_ERROR.test(String(first.message ?? ''))) return first;
+  console.log(JSON.stringify({ event: 'channel_retry', status: first.status }));
+  await new Promise(resolve => setTimeout(resolve, CHANNEL_RETRY_MS));
+  if (signal.aborted) return first;
+  return client.chatStream(credential, payload, signal);
+}
+
+// Only failed payloads are kept: the 11128 class is payload-specific, so the
+// body that failed is the one artifact worth having after the fact. Writing it
+// here (not at request time) keeps successful traffic off the disk entirely.
+async function dumpFailedRequest(payload) {
+  try {
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(new URL('./last-failed-upstream.json', import.meta.url), payload);
+  } catch { /* the failure is already being reported; never mask it */ }
+}
+
+// Reasoning effort: neither client states it for us. Codex sends one global
+// level for every model it can select, Claude Code and Claude Desktop send no
+// such field at all — so without a default the upstream picks per request and
+// the same model thinks "a little" in one shell and "a lot" in another.
+// `effortDefault` is that missing default. It is `max` because measurement
+// (2026-10-20, all 21 models of the WorkBuddy catalog) showed every model
+// answers 200 to `max`: the two that validate the field — deepseek-v4.1-flash
+// and deepseek-v4-pro — accept all five levels low..max, and the rest accept
+// any string at all, a bogus sentinel included. An explicit level from the
+// client still wins; this only fills an empty slot, so picking a cheaper level
+// in Codex keeps working.
+const EFFORT_DEFAULT = config.effortDefault;
+function applyEffortDefault(request) {
+  if (EFFORT_DEFAULT === undefined || request === null || typeof request !== 'object') return request;
+  const current = request.reasoning_effort;
+  if (current === undefined || current === null || current === '') {
+    request.reasoning_effort = EFFORT_DEFAULT;
+    console.log(JSON.stringify({ event: 'effort_default', model: request.model, effort: EFFORT_DEFAULT }));
+  }
+  return request;
+}
+
 // Follow both clients' provider choice. CC Switch has no switch hook, so the
 // written config is the only signal: when neither Codex nor Claude Code points
 // at this adapter, it is dead weight.
@@ -147,9 +196,12 @@ const server = createServer(async (req, res) => {
       // Claude Code asks for a token count before large turns; a local estimate
       // is honest here, the upstream exposes no counting endpoint.
       if (path.endsWith('/count_tokens')) return json(res, 200, { input_tokens: converted.estimatedInput });
-      const upstream = await client.chatStream(credential, JSON.stringify(converted.request), controller.signal);
-      if (!upstream.ok) return json(res, upstream.status >= 400 ? upstream.status : 502,
-        { error: { message: `WorkBuddy upstream (${upstream.status} ${upstream.kind}): ${String(upstream.message ?? '').slice(0, 300)}`, type: upstream.kind } });
+      const upstream = await chatStreamWithChannelRetry(credential, JSON.stringify(applyEffortDefault(converted.request)), controller.signal);
+      if (!upstream.ok) {
+        await dumpFailedRequest(JSON.stringify(converted.request));
+        return json(res, upstream.status >= 400 ? upstream.status : 502,
+          { error: { message: `WorkBuddy upstream (${upstream.status} ${upstream.kind}): ${String(upstream.message ?? '').slice(0, 300)}`, type: upstream.kind } });
+      }
       count++;
       const options = { model: converted.model, estimatedInput: converted.estimatedInput };
       if (body.stream) {
@@ -168,9 +220,12 @@ const server = createServer(async (req, res) => {
     }
 
     const { request, registry } = toChat(body);
-    const upstream = await client.chatStream(await store.resolve(), JSON.stringify(request), controller.signal);
-    if (!upstream.ok) return json(res, upstream.status >= 400 ? upstream.status : 502,
-      { error: { message: `WorkBuddy upstream: ${upstream.kind}`, type: upstream.kind } });
+    const upstream = await chatStreamWithChannelRetry(await store.resolve(), JSON.stringify(applyEffortDefault(request)), controller.signal);
+    if (!upstream.ok) {
+      await dumpFailedRequest(JSON.stringify(request));
+      return json(res, upstream.status >= 400 ? upstream.status : 502,
+        { error: { message: `WorkBuddy upstream: ${upstream.kind}`, type: upstream.kind } });
+    }
     count++;
     if (body.stream) res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' });
     const heartbeat = body.stream ? setInterval(() => res.write(': keepalive\n\n'), 10000) : undefined;

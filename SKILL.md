@@ -3,7 +3,7 @@ name: ds-wb-cc-routing
 description: 用 CC Switch 把 DeepSeek 官方与 WorkBuddy 接入 Codex CLI 和 Claude Code / Claude Desktop（Cowork）。当用户提到「cc switch 配置 provider」「DeepSeek 接 Claude Code」「WorkBuddy 接 Codex」「11128 未批准渠道」「模型菜单改名字」「inferenceModels」「18791 适配器」「Codex 第三方模型不支持」时应使用。
 license: MIT
 metadata:
-  version: 1.0.0
+  version: 1.1.0
   author: Codex
   tags: [cc-switch, codex, claude-code, deepseek, workbuddy, provider-routing, 11128]
 ---
@@ -41,7 +41,7 @@ accessToken，还要会刷新），不是普通 API key。CC Switch 没有这个
 3. **在 CC Switch 界面里点切换**（直接改数据库只注册条目，不生效）。
 4. 改完 Desktop 配置后**提醒用户自己开 CC Switch**（见下）。
 
-## 三个一定会踩的坑
+## 四个一定会踩的坑
 
 ### 1. 11128：客户端指纹（唯一的真坑）
 
@@ -69,7 +69,21 @@ Claude Code 把 `x-anthropic-billing-header: cc_version=…; cc_entrypoint=…;`
 只有桌面版 **Code 标签**会中（走 Claude Agent SDK）；单独跑 `claude -p` 的 system
 没这句，所以「CLI 直连能通、Code 标签 400」就是这个组合。
 
-### 3. CC Switch 是 GUI 托盘应用，拉不起来
+### 3. 11128 的第三个来源：新会话首轮追加的「反馈」句
+
+前两处都修好之后，还会剩一种形态：**新开对话第一条必 400，老会话续写完全正常**。
+别当成偶发 —— 那是 Code 标签只在新会话首轮往 system 里追加的一句 onboarding：
+
+```
+To give feedback, users should report the issue at https://github.com/anthropics/claude-code/issues
+```
+
+二分实测：最小失败窗口就是这串 99 字符，改写它一个字节不动其余 31 KB → 400 变 200。
+反直觉的是**单独这句话不触发**，要「长 system + 它」的组合才中。
+
+它同时解释了「为什么长会话一直没事」：后续轮次的 system 里没有这段。
+
+### 4. CC Switch 是 GUI 托盘应用，拉不起来
 
 自动化会话里 `Start-Process` / `cmd start` 起的进程**都会随会话被清理**
 （`tasklist` 里消失、`15721` 跟着不监听，Claude Desktop 直接连不上）。
@@ -108,6 +122,27 @@ Claude Code 发厂商名（`claude-sonnet-4-5-20250929`），WorkBuddy 不认。
 可以再试，但用前建议在真实客户端跑一次「读文件」确认。详见
 [references/limits.md](references/limits.md)。
 
+## 智能度（`reasoning_effort`）：默认值有三个落点
+
+用户说的「智能度」= 上游的 `reasoning_effort`，五个档
+`low` / `medium` / `high` / `xhigh` / `max`。它不属于 CC Switch，也不在客户端界面上：
+
+| 落点 | 管什么 |
+| --- | --- |
+| Codex 模型目录的 `default_reasoning_level` | 菜单里每个模型默认选哪档 |
+| Codex provider 的 `model_reasoning_effort` | Codex 每轮实际发出去的值（一份配置管所有模型） |
+| 适配器 `local-settings.json` 的 `effortDefault` | Claude Code / Cowork **根本不发**这字段，替它补一个 |
+
+**实测（2026-10-20，21 个模型逐个真发请求）：全部接受 `max`，返回 200。**
+但只有 `deepseek-v4.1-flash` / `deepseek-v4-pro` 会**校验**取值（假哨兵会被 400 顶回），
+其余模型「接受任意值但未见得照办」—— 设高是安全的，**别拿 200 当「它真的想更久」的证据**。
+
+适配器的 `effortDefault` 只**填空不覆盖**：请求里已有 `reasoning_effort` 就不动，
+所以在 Codex 里手动选低档仍然有效。补位会在日志里留一行
+`{"event":"effort_default","model":…,"effort":"max"}`。
+
+细节、SQL 与验证命令见 [references/reasoning-effort.md](references/reasoning-effort.md)。
+
 ## 按需读取参考文件
 
 - [references/requirements.md](references/requirements.md)
@@ -119,7 +154,10 @@ Claude Code 发厂商名（`claude-sonnet-4-5-20250929`），WorkBuddy 不认。
   含对照表、四个好处、代价清单、「什么时候不该这么配」。
 
 - [references/troubleshooting.md](references/troubleshooting.md)
-  —— 报 11128 / 11133 / 超时 / 000 时读。二分定位套路、错误码对照、直连测试命令。
+  —— 报 11128 / 11133 / 超时 / 000 时读。11128 的三个来源、二分定位套路、错误码对照。
+- [references/reasoning-effort.md](references/reasoning-effort.md)
+  —— 问「智能度 / 推理档位 / 为什么 Claude Code 里想得浅」、要把默认档调到最高时读。
+  含三处落点、实测表、改库 SQL、验证命令。
 - [references/model-menu.md](references/model-menu.md)
   —— 要改 Claude Desktop 模型菜单、加映射、菜单项重复或显示不对时读。
 - [references/cc-switch-internals.md](references/cc-switch-internals.md)

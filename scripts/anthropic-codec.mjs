@@ -41,8 +41,22 @@ const CLIENT_FINGERPRINT = /x-anthropic-[a-z-]+\s*:.*$/gim;
 // CLI. The exact phrase below is enough to get 11128 — verified by bisecting a
 // real Code-tab request down to these 40 characters. The CLI identity line is
 // useful to the model, so rewrite it rather than dropping it.
+//
+// Third (found 2026-10-20 15:00, same 11128): the desktop Code tab appends the
+// official feedback paragraph to the system prompt of a *fresh* session, and
+// that single sentence is refused:
+//   `To give feedback, users should report the issue at https://github.com/anthropics/claude-code/issues`
+// Bisected out of a real 231 KB first-turn request: the minimal failing window
+// is exactly those 99 characters, and rewriting that one sentence turned the
+// same request from 400 into 200. Symptom to remember: **every new conversation
+// dies on its first message while a long-running one keeps working** — later
+// turns of an established session carry a system prompt without this block.
 const CHANNEL_MARKERS = [
   [/Anthropic['’]s official CLI for Claude/gi, 'an AI coding agent'],
+  [/To give feedback, users should report the issue at https?:\/\/\S+/gi,
+    'To give feedback, users should report it in the product issue tracker'],
+  // Fallback for prompt variants that carry the repo link without that sentence.
+  [/https?:\/\/github\.com\/anthropics\/claude-code\S*/gi, 'the product issue tracker'],
 ];
 function neutraliseChannelMarkers(text) {
   return CHANNEL_MARKERS.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), text);

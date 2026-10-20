@@ -4,6 +4,7 @@
   "secret": "YOUR_LOCAL_SECRET",
   "model": "deepseek-v4.1-flash",
   "fastModel": "deepseek-v4.1-flash",
+  "effortDefault": "max",
   "exactRoutes": {
     "claude-opus-5": "hy4-preview",
     "claude-opus-5-5": "step-5-preview",

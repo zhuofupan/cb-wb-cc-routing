@@ -10,6 +10,13 @@
 | `cache_control` | 丢弃 | 上游无 prompt caching |
 | `top_k`、`metadata`、`service_tier` | 忽略 | 上游无对应 |
 | `count_tokens` | **字符数估算** | 上游无计数接口 |
+| `reasoning_effort` | 只在请求**没写**时补 `effortDefault`（默认 `max`） | 覆盖会夺走客户端的手动选择 |
+
+**`reasoning_effort` 的边界要看清**：21 个模型逐个发过真实请求，全部接受 `max`
+（返回 200）；但只有 `deepseek-v4.1-flash` / `deepseek-v4-pro` 会**校验**取值 ——
+其余模型连一个不存在的哨兵值都照收。所以「设了 max」是**安全的**，
+但「这个模型真的想得更久」**没有被验证过**。要下这个结论得做效果对比，
+不能拿 200 当证据。详见 [reasoning-effort.md](reasoning-effort.md)。
 
 **thinking 不回传的后果**：多轮工具调用中，模型看不到自己的上一轮思考。
 这是最影响实际效果的一条。

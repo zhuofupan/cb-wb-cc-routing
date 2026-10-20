@@ -130,9 +130,16 @@ Codex       ──┬─→ OpenAI / DeepSeek 官方
 但它读的是你的登录凭证，且属于非官方方式，自己判断是否接受。
 
 **三个必踩的坑是什么？**
-11128 错误码的两个来源（渠道指纹 + system 里的身份句）、以及模型菜单的真正
-控制点。这些细节在 [`SKILL.md`](SKILL.md) 和
+11128 错误码的三个来源（渠道指纹、system 里的 CLI 身份句、新会话首轮追加的
+「反馈」句），以及模型菜单的真正控制点。这些细节在 [`SKILL.md`](SKILL.md) 和
 [`references/troubleshooting.md`](references/troubleshooting.md) 里。
+
+**模型的「智能度」怎么调？**
+就是上游的 `reasoning_effort`（`low`/`medium`/`high`/`xhigh`/`max`）。它有三个落点：
+Codex 模型目录的默认档、Codex provider 的配置、以及适配器的 `effortDefault`
+（Claude Code 根本不发这个字段，得由适配器补）。本仓库默认全部调到 **`max`**，
+且只在请求没写的时候补位 —— 在 Codex 里手动选低档依然生效。
+实测与改法见 [`references/reasoning-effort.md`](references/reasoning-effort.md)。
 
 ## 来源与许可
 
@@ -149,8 +156,9 @@ Codex       ──┬─→ OpenAI / DeepSeek 官方
 
 | 场景 | 读 |
 | --- | --- |
-| 全部 | [`SKILL.md`](SKILL.md) —— 四条通路、三个必踩的坑、配置顺序 |
+| 全部 | [`SKILL.md`](SKILL.md) —— 四条通路、四个必踩的坑、配置顺序 |
 | 报 11128 / 11133 / 超时 / `000` | [`references/troubleshooting.md`](references/troubleshooting.md) |
+| 调「智能度 / 推理档位」、Claude Code 里想得比 Codex 浅 | [`references/reasoning-effort.md`](references/reasoning-effort.md) |
 | 改 Desktop 模型菜单、菜单项重复 | [`references/model-menu.md`](references/model-menu.md) |
 | 问「哪些软件必须开着 / 为什么连不上」 | [`references/requirements.md`](references/requirements.md) |
 | 问「有什么好处 / 跟直接用有什么差别」 | [`references/why.md`](references/why.md) |
