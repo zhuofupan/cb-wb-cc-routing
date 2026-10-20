@@ -8,7 +8,7 @@
   "claudeDesktopModelRoutes": {
     "claude-haiku-5": {
       "model": "minimax-m3.1-flash",
-      "labelOverride": "cb·MiniMax-M3.1-Flash 0.08x · 1M",
+      "labelOverride": "cb·MiniMax-M3.1-Flash (0.08x) · 1M",
       "supports1m": false
     }
   }

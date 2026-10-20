@@ -13,7 +13,7 @@ class DesktopTests(unittest.TestCase):
             self.assertTrue(all(r['labelOverride'].endswith(' · 1M')for r in routes.values()))
             self.assertEqual(routes['claude-haiku-5']['model'],'minimax-m3.1-flash')
             self.assertEqual([r['model'] for r in routes.values()], ['deepseek-v4.1-flash','minimax-m3.1-flash','glm-5.3-flashx','glm-5.3','kimi-k3-2'])
-            self.assertEqual(routes['claude-haiku-5-5']['labelOverride'], prefix+'·GLM-5.3-FlashX 0.19x · 1M')
+            self.assertEqual(routes['claude-haiku-5-5']['labelOverride'], prefix+'·GLM-5.3-FlashX (0.19x) · 1M')
         self.assertEqual(routes_for('deepseek')['claude-sonnet-5']['model'],'deepseek-flash')
     def test_update_preserves_identity_active_state_and_unrelated_config(self):
         with tempfile.TemporaryDirectory()as tmp:

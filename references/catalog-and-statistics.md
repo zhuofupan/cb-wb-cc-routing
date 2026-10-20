@@ -1,6 +1,6 @@
 # 模型目录、默认档位与运行统计
 
-CodeBuddy / WorkBuddy 显示名统一使用 `cb·模型 倍率x · 窗口`、`wb·模型 倍率x · 窗口`。Hy4、Step-5 和 Xiaomi MiMo 已移除，新增 GLM-5.3-FlashX，剩余五款在 Codex 目录中提供 xhigh（极高），网关 highest 策略发送上游 max。当前桌面界面的 enabledReasoningEfforts 默认过滤 max，旧目录只有 max 时会丢失可选档位；静态目录生成和自动同步均需保留 xhigh 映射。请求被接受不代表供应商内部算力已验证。客户端启动时加载目录，更新后应完全重开 Codex，再检查切换模型后的强度显示。
+CodeBuddy / WorkBuddy 显示名统一使用 `cb·模型 (倍率x) · 窗口`、`wb·模型 (倍率x) · 窗口`。Hy4、Step-5 和 Xiaomi MiMo 已移除，新增 GLM-5.3-FlashX，剩余五款在 Codex 目录中提供 xhigh（极高），网关 highest 策略发送上游 max。当前桌面界面的 enabledReasoningEfforts 默认过滤 max，旧目录只有 max 时会丢失可选档位；静态目录生成和自动同步均需保留 xhigh 映射。请求被接受不代表供应商内部算力已验证。客户端启动时加载目录，更新后应完全重开 Codex，再检查切换模型后的强度显示。
 
 网关启动时和每小时刷新一次目录：CodeBuddy 读取 `~/.codebuddy/local_storage/entry_*.info` 中最近的有效模型目录；WorkBuddy 使用既有认证客户端读取账号模型接口。只有已选型号的明确上下文、思考档位、billing.credits 倍率元数据会更新；新增型号只列入提示，不自动加入，缺失字段保留已知配置。本机或用户未安装 CodeBuddy CLI、没有账号缓存时继续使用配置目录。可用 `catalogCacheDir` 指定其他缓存目录。
 

@@ -14,7 +14,7 @@ MULTIPLIERS = dict(zip((m[1] for m in MODELS), ['0.11', '0.08', '0.19', '0.69', 
 def model_label(vendor, model, label, window):
     prefix = {'workbuddy': 'wb', 'codebuddy': 'cb'}[vendor]
     size = f'{window//1000000}M' if window % 1000000 == 0 else f'{window//1000}k'
-    return f'{prefix}·{label} {MULTIPLIERS[model]}x · {size}'
+    return f'{prefix}·{label} ({MULTIPLIERS[model]}x) · {size}'
 
 def routes_for(vendor):
     if vendor == 'deepseek':

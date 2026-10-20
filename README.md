@@ -4,7 +4,7 @@ GitHub 仓库：[`zhuofupan/cb-wb-cc-routing`](https://github.com/zhuofupan/cb-w
 
 用 CC Switch 将 **DeepSeek 官方、CodeBuddy、WorkBuddy** 接入 **Claude Desktop 的 Code / Cowork**，并保留 Claude Code / Codex 的协议适配示例。目标是更换模型与额度来源，同时继续使用客户端的文件工具、Skills、MCP 和插件；不是把厂商聊天界面搬过来。
 
-2026-10-21 更新：CodeBuddy / WorkBuddy 各保留五款，按用户指定的性价比顺序排列：DeepSeek、MiniMax、GLM FlashX、GLM、Kimi。移除 Xiaomi MiMo，新增 GLM-5.3-FlashX；名称格式为 `cb·模型名 倍率x · 上下文` / `wb·模型名 倍率x · 上下文`。Codex 使用 xhigh（极高）预设，上游仍发送 max。最新测试结果及限制见[验证记录](references/validation-20261021.md)。
+2026-10-21 更新：CodeBuddy / WorkBuddy 各保留五款，按用户指定的性价比顺序排列：DeepSeek、MiniMax、GLM FlashX、GLM、Kimi。移除 Xiaomi MiMo，新增 GLM-5.3-FlashX；名称格式为 `cb·模型名 (倍率x) · 上下文` / `wb·模型名 (倍率x) · 上下文`。Codex 使用 xhigh（极高）预设，上游仍发送 max。最新测试结果及限制见[验证记录](references/validation-20261021.md)。
 
 ## 认证与依赖
 

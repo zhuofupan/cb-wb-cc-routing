@@ -21,7 +21,7 @@ class CodexTests(unittest.TestCase):
             else:
                 self.assertTrue(all(m['display_name'].startswith('cb·'if vendor=='codebuddy'else'wb·')for m in models))
                 self.assertEqual([m['slug'] for m in models], ['deepseek-v4.1-flash','minimax-m3.1-flash','glm-5.3-flashx','glm-5.3','kimi-k3-2'])
-                self.assertIn('GLM-5.3-FlashX 0.19x · 1M',models[2]['display_name'])
+                self.assertIn('GLM-5.3-FlashX (0.19x) · 1M',models[2]['display_name'])
                 self.assertEqual([m['priority'] for m in models],list(range(5)))
     def test_registration_preserves_selection_and_other_settings(self):
         with sqlite3.connect(':memory:')as conn:

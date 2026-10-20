@@ -21,7 +21,7 @@ test('CodeBuddy gateway works without WorkBuddy/DSH and preserves protocol seman
   const reservation=createServer();const port=await listen(reservation);await new Promise(r=>reservation.close(r));
   const scratch=await mkdtemp(join(tmpdir(),'routing-regression-'));
   const config=join(scratch,'profile.json');
-  await writeFile(config,JSON.stringify({mode:'codebuddy',port,upstream:`http://127.0.0.1:${upstreamPort}`,followClients:false,effortDefault:'max',effortPolicy:'highest',effortMaxByModel:{'hy4-preview':'high'},exactRoutes:{'claude-opus-5':'hy4-preview','claude-opus-4-8':'minimax-m3.1-flash'},models:[{id:'minimax-m3.1-flash',name:'cb·MiniMax-M3.1-Flash 0.08x · 1M',context:1000000}]}));
+  await writeFile(config,JSON.stringify({mode:'codebuddy',port,upstream:`http://127.0.0.1:${upstreamPort}`,followClients:false,effortDefault:'max',effortPolicy:'highest',effortMaxByModel:{'hy4-preview':'high'},exactRoutes:{'claude-opus-5':'hy4-preview','claude-opus-4-8':'minimax-m3.1-flash'},models:[{id:'minimax-m3.1-flash',name:'cb·MiniMax-M3.1-Flash (0.08x) · 1M',context:1000000}]}));
   const entry=fileURLToPath(new URL('../scripts/gateway-server.mjs',import.meta.url));
   const child=spawn(process.execPath,[entry,'--settings',config],{stdio:['ignore','pipe','pipe'],env:{...process.env,IDLE_EXIT_MINUTES:'0'}});
   let log='';child.stdout.on('data',b=>{log+=b});child.stderr.on('data',b=>{log+=b});
@@ -46,7 +46,7 @@ test('CodeBuddy gateway works without WorkBuddy/DSH and preserves protocol seman
   await t.test('auth is required and catalog exposes prefixed 1M model',async()=>{
     const denied=await fetch(root+'/v1/models');assert.equal(denied.status,401);
     const r=await fetch(root+'/v1/models',{headers:{Authorization:'Bearer ck_offline_test'}});assert.equal(r.status,200);
-    const {data}=await r.json();assert.equal(data[0].display_name,'cb·MiniMax-M3.1-Flash 0.08x · 1M');assert.equal(data[0].context_window,1000000);
+    const {data}=await r.json();assert.equal(data[0].display_name,'cb·MiniMax-M3.1-Flash (0.08x) · 1M');assert.equal(data[0].context_window,1000000);
   });
   await t.test('named choice selects only that function and respects highest declared effort',async()=>{
     const tools=['other','chosen'].map(name=>({name,input_schema:{type:'object',properties:{}}}));

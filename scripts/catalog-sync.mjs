@@ -32,9 +32,9 @@ export function mergeSelected(selected, upstream, mode, ceilings = {}) {
     const effort = declared ?? ceilings[m.id ?? m.slug] ?? 'max';
     const oldLabel = (m.name ?? m.display_name ?? m.id ?? m.slug).replace(/^(cb|wb)·/i, '').replace(/\s*·\s*\d+[kKmM]$/, '');
     const multiplier = live?.billing?.credits?.match(/x(\d+(?:\.\d+)?)/i)?.[1]
-      ?? m.multiplier ?? oldLabel.match(/\s+(\d+(?:\.\d+)?)x$/i)?.[1];
-    const label = oldLabel.replace(/\s+\d+(?:\.\d+)?x$/i, '');
-    return { ...m, name: `${prefix}·${label}${multiplier ? ` ${multiplier}x` : ''}${context ? ` · ${size(context)}` : ''}`, ...(multiplier ? { multiplier } : {}), ...(context ? { context } : {}), effort };
+      ?? m.multiplier ?? oldLabel.match(/\s+\(?(\d+(?:\.\d+)?)x\)?$/i)?.[1];
+    const label = oldLabel.replace(/\s+\(?\d+(?:\.\d+)?x\)?$/i, '');
+    return { ...m, name: `${prefix}·${label}${multiplier ? ` (${multiplier}x)` : ''}${context ? ` · ${size(context)}` : ''}`, ...(multiplier ? { multiplier } : {}), ...(context ? { context } : {}), effort };
   });
 }
 

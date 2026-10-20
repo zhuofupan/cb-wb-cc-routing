@@ -2,7 +2,7 @@
 
 ## 当前菜单与新增 FlashX
 
-cb/wb 各五款，按用户指定顺序：DeepSeek-V4.1-Flash 0.11x、MiniMax-M3.1-Flash 0.08x、GLM-5.3-FlashX 0.19x、GLM-5.3 0.69x、Kimi-K3 1.62x。各声明 1M；名称格式为 `cb·模型 倍率x · 1M` / `wb·模型 倍率x · 1M`。移除 Xiaomi MiMo，不继续为其增加适配补丁；已有共享协议兼容保留。
+cb/wb 各五款，按用户指定顺序：DeepSeek-V4.1-Flash 0.11x、MiniMax-M3.1-Flash 0.08x、GLM-5.3-FlashX 0.19x、GLM-5.3 0.69x、Kimi-K3 1.62x。各声明 1M；名称格式为 `cb·模型 (倍率x) · 1M` / `wb·模型 (倍率x) · 1M`。移除 Xiaomi MiMo，不继续为其增加适配补丁；已有共享协议兼容保留。
 
 - 账号目录确认 FlashX 的 ID 为 `glm-5.3-flashx`，支持图片、最高档 max，倍率来自 `billing.credits`。这些是目录声明，不等于满窗口或完整能力实测。
 - Node 14 项、Python 8 项回归通过；覆盖菜单顺序、去除 MiMo、新增 FlashX、倍率刷新与名称重复刷新、配置保留及协议转换。
