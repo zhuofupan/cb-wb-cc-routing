@@ -9,58 +9,137 @@
 
 # 写给用户
 
-## 是什么
+## 先说背景：为什么要做这件事
 
-同一套配置能把两个上游（DeepSeek 官方、WorkBuddy）接进两个客户端
-（Codex CLI、Claude Code / Desktop）的四条通路，附带可运行的适配器代码。
+你手上有三套模型能用：
 
-## 四条通路
+- **官方 Claude** —— Anthropic 的，最贵但最好用
+- **DeepSeek 官方** —— 按量付费，有自己的 API key
+- **WorkBuddy** —— 腾讯的 AI 编程客户端，按月订阅，里面接了一批国产模型
 
-| 通路 | 中间件 |
-| --- | --- |
-| DeepSeek → Codex / Claude Code | 不需要（官方自带 Anthropic 兼容端点） |
-| WorkBuddy → Codex / Claude Code | 需要 18791 适配器 |
-| WorkBuddy → Desktop / Cowork | 需要 18791 适配器 + CC Switch |
+问题在于：**每一套只能在自己的界面里用。** 你用 Claude Code 写代码，就吃不到
+WorkBuddy 的额度；你用 WorkBuddy，就用不了 Claude Code 的 skills 和记忆。
 
-WorkBuddy 必须走适配器：上游认的是桌面版登录态（accessToken，会过期要刷新），
-不是普通 API key。适配器**只读**打开桌面版的加密凭据，调 `WorkBuddy.exe` 取
-解密密钥，再以 Bearer 打上游 —— 不拦截流量。
+这套配置解决的就是这个问题 —— 把两个第三方上游接进你已经在用的客户端里。
 
-## 图什么
+## 配完之后是什么样
 
-**不被锁在任何一家。** 换模型不用换工作现场、一套额度跑三个壳、
-能用 Claude Code 的生态、失败能退回官方。
+原来：
 
-代价是多养一层适配器、thinking 不回传、CC Switch 必须手动开。
+```
+Claude Code ──→ Anthropic 官方（贵）
+Codex       ──→ OpenAI 官方
+WorkBuddy   ──→ 自己的界面，只能用自己家的模型
+```
 
-详见 [`references/why.md`](references/why.md)。
+配完之后：
 
-## 依赖哪些软件
+```
+Claude Code ──┬─→ Anthropic 官方（随时切回）
+              ├─→ DeepSeek 官方
+              └─→ WorkBuddy 的模型
 
-| 通路 | WorkBuddy | 适配器 18791 | CC Switch 15721 |
+Codex       ──┬─→ OpenAI / DeepSeek 官方
+              └─→ WorkBuddy 的模型
+```
+
+**你的代码、会话、记忆都还在 Claude Code / Codex 里，只是背后的模型换了。**
+在菜单里点一下就切，不用重开窗口、重贴上下文。
+
+## 四条通路，以及为什么要分
+
+| 通路 | 需要装什么 | 为什么 |
+| --- | --- | --- |
+| DeepSeek → Codex | 什么都不用 | DeepSeek 官方提供了兼容端点，直接连 |
+| DeepSeek → Claude Code | 什么都不用 | 同上 |
+| WorkBuddy → Codex | 18791 适配器 | 见下方说明 |
+| WorkBuddy → Claude Code | 18791 适配器 | 同上 |
+| WorkBuddy → Desktop / Cowork | 适配器 + CC Switch | Desktop 的请求要先经 CC Switch 转发 |
+
+**DeepSeek 为什么不用适配器**：它给你一个标准 API key，任何客户端填进去就能用。
+
+**WorkBuddy 为什么必须适配器**：它没有给外部用的 API key。你能用的是**桌面版的
+登录态** —— 就是你登录 WorkBuddy 客户端后，它存在硬盘上的那个登录凭证。
+这个凭证：
+
+- 是**加密**的，要用 WorkBuddy 自己的程序才能解开
+- 会**过期**，需要定期刷新
+- WorkBuddy 桌面版**必须开着**，否则解不开
+
+适配器（一个跑在 `127.0.0.1:18791` 的小程序）就是干这个的：读那个凭证、
+解密、拿你的身份去请求 WorkBuddy 的服务器。**它不拦截任何网络流量**，
+只是读文件。
+
+> ⚠️ 这意味着适配器是「非官方」的 —— 它复现了 WorkBuddy 官方客户端的登录方式。
+> 用的是你自己的账号和额度，但 WorkBuddy 一升级，适配器可能就失效。
+
+## 图什么，代价是什么
+
+**好处**：
+
+1. **换模型不用换工作现场** —— 同一个窗口里点一下菜单，上下文都还在
+2. **一套额度跑三个壳** —— WorkBuddy 的订阅能在 Codex 和 Claude Code 里用
+3. **能用 Claude Code 的生态** —— skills、hooks、记忆全都还在
+4. **随时能退回官方** —— 上游挂了，CC Switch 点一下就回 Anthropic
+
+**代价**：
+
+- 多养一层适配器，WorkBuddy 升级可能要跟着修
+- **模型的思考过程不保留** —— 多轮工具调用时，模型看不到自己上一轮怎么想的，
+  这是实际效果上最明显的短板
+- **CC Switch 必须手动开** —— 它是托盘程序，脚本拉不起来
+- 多一层故障点，出问题要逐层排查
+
+完整对照（含「什么时候不该这么配」）见 [`references/why.md`](references/why.md)。
+
+## 开始之前：哪些软件必须开着
+
+| 你要用的通路 | WorkBuddy | 适配器 18791 | CC Switch 15721 |
 | --- | --- | --- | --- |
-| DeepSeek 两条 | ✗ | ✗ | ✗ |
+| 只用 DeepSeek | ✗ | ✗ | ✗ |
 | WorkBuddy → Codex / Claude Code | ✓ | ✓ | ✗ |
 | WorkBuddy → Desktop / Cowork | ✓ | ✓ | ✓ |
 
-WorkBuddy 必须保持**可运行**（不只是登录过）—— 解密要调它的可执行文件。
+两个最容易出错的点：
 
-详见 [`references/requirements.md`](references/requirements.md)。
+- **WorkBuddy 不是「登录一次就行」**，必须保持**在运行**。它一旦被卸载、
+  升级换了安装路径、或者重装过，适配器就解不开凭证了。
+- **CC Switch 必须你自己启动**。它是 GUI 托盘程序，脚本或自动化会话里启动的
+  进程会被清理掉，表现为 Claude Desktop 突然连不上模型。
 
-## 注意
+## 自己动手配的步骤
 
-配置步骤在 [`SKILL.md`](SKILL.md)；三个必踩的坑（11128 的两个来源、
-模型菜单的真正开关）也在那里和 [`references/troubleshooting.md`](references/troubleshooting.md)、
-[`references/model-menu.md`](references/model-menu.md)。
+1. 改 `scripts/local-settings.json` —— 填 `secret`（自己生成一串随机字符）
+   和 `electron`（WorkBuddy.exe 的完整路径）
+2. 跑 `powershell -File scripts/start-workbuddy.ps1` 启动适配器
+3. **关掉 CC Switch**，再跑三个 `register-ccswitch-*.py` 注册条目
+4. 打开 CC Switch，**在界面里点卡片切换**（直接改数据库不生效）
 
-仓库不含真实密钥，脚本从环境变量读取：`CCSWITCH_DB`、`ADAPTER_HOME`、
-`DEEPSEEK_API_KEY`、`WORKBUDDY_LOCAL_SECRET`、`CLAUDE_3P_PROFILE`。
+完整命令见下方「给 AI 的工作说明」里的安装一节，或直接用 agent 帮你配。
+
+## 常见问题
+
+**配错了怎么恢复？**
+所有脚本都是幂等的，重跑就行。想彻底恢复，在 CC Switch 界面切回官方 provider。
+
+**会不会花额外的钱？**
+不会。用的都是你自己的 key 和订阅额度，没有中间商。
+
+**安不安全？**
+适配器只监听 `127.0.0.1`（只有本机能连），有随机令牌保护，不记录请求内容。
+但它读的是你的登录凭证，且属于非官方方式，自己判断是否接受。
+
+**三个必踩的坑是什么？**
+11128 错误码的两个来源（渠道指纹 + system 里的身份句）、以及模型菜单的真正
+控制点。这些细节在 [`SKILL.md`](SKILL.md) 和
+[`references/troubleshooting.md`](references/troubleshooting.md) 里。
 
 ## 来源与许可
 
 - DSH 插件（WorkBuddy 认证）：https://github.com/corrinehu/dsh-workbuddy-connect （MIT）
 - 官方 DeepSeek Codex 指南：https://api-docs.deepseek.com/quick_start/agent_integrations/codex/
 - 本仓库：MIT
+
 
 # 给 AI 的工作说明
 
