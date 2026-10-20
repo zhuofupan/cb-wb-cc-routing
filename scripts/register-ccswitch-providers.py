@@ -5,7 +5,7 @@ Registration requires CC Switch to be closed; auth.json is never modified.
 """
 import argparse, copy, datetime, json, os, pathlib, re, sqlite3, time
 from contextlib import closing
-from desktop_models import MODELS, ensure_stopped
+from desktop_models import MODELS, ensure_stopped, model_label
 
 VENDORS = {
     'codebuddy': ('codex-codebuddy-ck', 'CodeBuddy', 'http://127.0.0.1:18792/v1', 'CODEBUDDY_API_KEY'),
@@ -24,7 +24,8 @@ def catalog(vendor, template):
             m.pop(key, None)
         size = '1M' if window in (1000000, 1048576) else f'{window//1000}k'
         prefix = {'codebuddy': 'cb·', 'workbuddy': 'wb·', 'deepseek': ''}[vendor]
-        m.update(slug=slug, display_name=f'{prefix}{label}·{size}', description=f'{vendor}; declared capacity, not a full-window load test',
+        display_name = f'{prefix}{label}·{size}' if vendor == 'deepseek' else model_label(vendor, slug, label, window)
+        m.update(slug=slug, display_name=display_name, description=f'{vendor}; declared capacity, not a full-window load test',
                  base_instructions='You are a coding assistant. Use the provided tools to complete the user request. Verify results and report failures honestly.',
                  context_window=window, max_context_window=window, effective_context_window_percent=95,
                  default_reasoning_level=client_effort, supported_reasoning_levels=[{'effort': client_effort, 'description': f'Upstream effort: {effort}'}],

@@ -1,24 +1,28 @@
-"""Selected model tiers, verified against the upstream catalog on 2026-10-20."""
+"""Selected model tiers, verified against the upstream catalog on 2026-10-21."""
 import os
 import subprocess
 
 MODELS = [
-    ('claude-sonnet-5', 'deepseek-v4.1-flash', 'Deepseek-V4.1-Flash', 1000000, 'max'),
-    ('claude-haiku-5', 'glm-5.3', 'GLM-5.3', 1000000, 'max'),
-    ('claude-haiku-5-5', 'kimi-k3-2', 'Kimi-K3', 1000000, 'max'),
-    ('claude-opus-4-8', 'minimax-m3.1-flash', 'MiniMax-M3.1-Flash', 1000000, 'max'),
-    ('claude-fable-5', 'mimo-v2.6-pro', 'Xiaomi MiMo-V2.6-Pro', 1000000, 'max'),
+    ('claude-fable-5', 'deepseek-v4.1-flash', 'Deepseek-V4.1-Flash', 1000000, 'max'),
+    ('claude-haiku-5', 'minimax-m3.1-flash', 'MiniMax-M3.1-Flash', 1000000, 'max'),
+    ('claude-haiku-5-5', 'glm-5.3-flashx', 'GLM-5.3-FlashX', 1000000, 'max'),
+    ('claude-opus-4-8', 'glm-5.3', 'GLM-5.3', 1000000, 'max'),
+    ('claude-sonnet-5', 'kimi-k3-2', 'Kimi-K3', 1000000, 'max'),
 ]
+MULTIPLIERS = dict(zip((m[1] for m in MODELS), ['0.11', '0.08', '0.19', '0.69', '1.62']))
+
+def model_label(vendor, model, label, window):
+    prefix = {'workbuddy': 'wb', 'codebuddy': 'cb'}[vendor]
+    size = f'{window//1000000}M' if window % 1000000 == 0 else f'{window//1000}k'
+    return f'{prefix}·{label} {MULTIPLIERS[model]}x · {size}'
 
 def routes_for(vendor):
     if vendor == 'deepseek':
         return {alias: {'model': model, 'labelOverride': label, 'supports1m': False}
                 for alias, model, label in [('claude-sonnet-5','deepseek-flash','DeepSeek-V4.1-Flash·1M')]}
-    prefix = {'workbuddy': 'wb', 'codebuddy': 'cb'}[vendor]
     result = {}
     for alias, model, label, window, _ in MODELS:
-        size = f'{window//1000000}M' if window % 1000000 == 0 else f'{window//1000}k'
-        result[alias] = {'model': model, 'labelOverride': f'{prefix}·{label}·{size}', 'supports1m': False}
+        result[alias] = {'model': model, 'labelOverride': model_label(vendor, model, label, window), 'supports1m': False}
     return result
 
 def ensure_stopped():

@@ -8,38 +8,43 @@
   "effortMaxByModel": {},
   "followClients": false,
   "exactRoutes": {
-    "claude-sonnet-5": "deepseek-v4.1-flash",
-    "claude-haiku-5": "glm-5.3",
-    "claude-haiku-5-5": "kimi-k3-2",
-    "claude-opus-4-8": "minimax-m3.1-flash",
-    "claude-fable-5": "mimo-v2.6-pro"
+    "claude-fable-5": "deepseek-v4.1-flash",
+    "claude-haiku-5": "minimax-m3.1-flash",
+    "claude-haiku-5-5": "glm-5.3-flashx",
+    "claude-opus-4-8": "glm-5.3",
+    "claude-sonnet-5": "kimi-k3-2"
   },
   "modelRoutes": [],
   "models": [
     {
       "id": "deepseek-v4.1-flash",
-      "name": "cb·Deepseek-V4.1-Flash·1M",
-      "context": 1000000
-    },
-    {
-      "id": "glm-5.3",
-      "name": "cb·GLM-5.3·1M",
-      "context": 1000000
-    },
-    {
-      "id": "kimi-k3-2",
-      "name": "cb·Kimi-K3·1M",
-      "context": 1000000
+      "name": "cb·Deepseek-V4.1-Flash 0.11x · 1M",
+      "context": 1000000,
+      "multiplier": "0.11"
     },
     {
       "id": "minimax-m3.1-flash",
-      "name": "cb·MiniMax-M3.1-Flash·1M",
-      "context": 1000000
+      "name": "cb·MiniMax-M3.1-Flash 0.08x · 1M",
+      "context": 1000000,
+      "multiplier": "0.08"
     },
     {
-      "id": "mimo-v2.6-pro",
-      "name": "cb·Xiaomi MiMo-V2.6-Pro·1M",
-      "context": 1000000
+      "id": "glm-5.3-flashx",
+      "name": "cb·GLM-5.3-FlashX 0.19x · 1M",
+      "context": 1000000,
+      "multiplier": "0.19"
+    },
+    {
+      "id": "glm-5.3",
+      "name": "cb·GLM-5.3 0.69x · 1M",
+      "context": 1000000,
+      "multiplier": "0.69"
+    },
+    {
+      "id": "kimi-k3-2",
+      "name": "cb·Kimi-K3 1.62x · 1M",
+      "context": 1000000,
+      "multiplier": "1.62"
     }
   ],
   "upstream": "https://copilot.tencent.com"

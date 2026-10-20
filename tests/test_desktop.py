@@ -10,9 +10,10 @@ class DesktopTests(unittest.TestCase):
         for vendor,prefix in [('codebuddy','cb'),('workbuddy','wb')]:
             routes=routes_for(vendor);self.assertEqual(len(routes),5)
             self.assertTrue(all(r['labelOverride'].startswith(prefix+'·')for r in routes.values()))
-            self.assertTrue(all(r['labelOverride'].endswith(('·1M','·960k'))for r in routes.values()))
-            self.assertEqual(routes['claude-opus-4-8']['model'],'minimax-m3.1-flash')
-            self.assertNotIn('minimax-m3-pay',[r['model']for r in routes.values()])
+            self.assertTrue(all(r['labelOverride'].endswith(' · 1M')for r in routes.values()))
+            self.assertEqual(routes['claude-haiku-5']['model'],'minimax-m3.1-flash')
+            self.assertEqual([r['model'] for r in routes.values()], ['deepseek-v4.1-flash','minimax-m3.1-flash','glm-5.3-flashx','glm-5.3','kimi-k3-2'])
+            self.assertEqual(routes['claude-haiku-5-5']['labelOverride'], prefix+'·GLM-5.3-FlashX 0.19x · 1M')
         self.assertEqual(routes_for('deepseek')['claude-sonnet-5']['model'],'deepseek-flash')
     def test_update_preserves_identity_active_state_and_unrelated_config(self):
         with tempfile.TemporaryDirectory()as tmp:
@@ -30,7 +31,7 @@ class DesktopTests(unittest.TestCase):
         for name in ['local-settings.json.example','codebuddy-settings.json.example']:
             doc=json.loads((SCRIPTS/name).read_text(encoding='utf8'));routes=routes_for(doc['mode'])
             self.assertEqual({m['id']for m in doc['models']},{r['model']for r in routes.values()})
-            self.assertEqual(doc['exactRoutes']['claude-opus-4-8'],'minimax-m3.1-flash');self.assertFalse(doc['followClients'])
+            self.assertEqual(doc['exactRoutes']['claude-haiku-5'],'minimax-m3.1-flash');self.assertFalse(doc['followClients'])
             labels={r['model']:r['labelOverride']for r in routes.values()}
             self.assertTrue(all(m['name']==labels[m['id']]for m in doc['models']))
     def test_new_codebuddy_provider_needs_only_key(self):

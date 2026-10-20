@@ -16,9 +16,13 @@ class CodexTests(unittest.TestCase):
                 self.assertNotIn('model_messages',m);self.assertEqual(m['context_window'],m['max_context_window']);self.assertFalse(m['supports_search_tool'])
                 self.assertEqual(m['default_reasoning_level'],'max' if vendor=='deepseek' else 'xhigh')
                 self.assertEqual([level['effort']for level in m['supported_reasoning_levels']],[m['default_reasoning_level']])
-            self.assertFalse({'deepseek-v4-pro','space-bunny','hy4-preview','step-5-preview'} & {m['slug']for m in models})
+            self.assertFalse({'deepseek-v4-pro','space-bunny','hy4-preview','step-5-preview','mimo-v2.6-pro'} & {m['slug']for m in models})
             if vendor=='deepseek':self.assertEqual(models[0]['context_window'],1048576)
-            else:self.assertTrue(all(m['display_name'].startswith('cb·'if vendor=='codebuddy'else'wb·')for m in models))
+            else:
+                self.assertTrue(all(m['display_name'].startswith('cb·'if vendor=='codebuddy'else'wb·')for m in models))
+                self.assertEqual([m['slug'] for m in models], ['deepseek-v4.1-flash','minimax-m3.1-flash','glm-5.3-flashx','glm-5.3','kimi-k3-2'])
+                self.assertIn('GLM-5.3-FlashX 0.19x · 1M',models[2]['display_name'])
+                self.assertEqual([m['priority'] for m in models],list(range(5)))
     def test_registration_preserves_selection_and_other_settings(self):
         with sqlite3.connect(':memory:')as conn:
             conn.execute('create table providers(id text,app_type text,settings_config text,meta text,is_current integer)')

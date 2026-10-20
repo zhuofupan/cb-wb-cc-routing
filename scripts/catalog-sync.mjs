@@ -30,8 +30,11 @@ export function mergeSelected(selected, upstream, mode, ceilings = {}) {
     const supported = live?.reasoning?.supportedEfforts ?? live?.supportedEfforts;
     const declared = Array.isArray(supported) ? levels.filter(e => supported.includes(e)).at(-1) : undefined;
     const effort = declared ?? ceilings[m.id ?? m.slug] ?? 'max';
-    const label = (m.name ?? m.display_name ?? m.id ?? m.slug).replace(/^(cb|wb)·/i, '').replace(/·(?:\d+[kKmM])$/, '');
-    return { ...m, name: `${prefix}·${label}${context ? `·${size(context)}` : ''}`, ...(context ? { context } : {}), effort };
+    const oldLabel = (m.name ?? m.display_name ?? m.id ?? m.slug).replace(/^(cb|wb)·/i, '').replace(/\s*·\s*\d+[kKmM]$/, '');
+    const multiplier = live?.billing?.credits?.match(/x(\d+(?:\.\d+)?)/i)?.[1]
+      ?? m.multiplier ?? oldLabel.match(/\s+(\d+(?:\.\d+)?)x$/i)?.[1];
+    const label = oldLabel.replace(/\s+\d+(?:\.\d+)?x$/i, '');
+    return { ...m, name: `${prefix}·${label}${multiplier ? ` ${multiplier}x` : ''}${context ? ` · ${size(context)}` : ''}`, ...(multiplier ? { multiplier } : {}), ...(context ? { context } : {}), effort };
   });
 }
 

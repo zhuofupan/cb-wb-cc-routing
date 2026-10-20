@@ -1,3 +1,5 @@
+> 历史 R3 清单：MiMo 已移除，当前新增 GLM-5.3-FlashX，菜单顺序与倍率以 [README](../README.md#当前五模型) 为准。不要继续执行 MiMo 项。
+
 # cb-wb-cc-路由：三批完整人工验收 R3
 
 日期：2026-10-21。取代 R2 的七模型清单。当前 cb/wb 各五款：DeepSeek Flash、GLM、Kimi、MiniMax、MiMo；Hy4、Step-5、DeepSeek Pro、Space-Bunny 不再测试。

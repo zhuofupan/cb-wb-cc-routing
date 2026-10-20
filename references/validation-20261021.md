@@ -1,4 +1,21 @@
-# 2026-10-21：五模型与协议修复验证
+# 2026-10-21：模型调整与测试结果
+
+## 当前菜单与新增 FlashX
+
+cb/wb 各五款，按用户指定顺序：DeepSeek-V4.1-Flash 0.11x、MiniMax-M3.1-Flash 0.08x、GLM-5.3-FlashX 0.19x、GLM-5.3 0.69x、Kimi-K3 1.62x。各声明 1M；名称格式为 `cb·模型 倍率x · 1M` / `wb·模型 倍率x · 1M`。移除 Xiaomi MiMo，不继续为其增加适配补丁；已有共享协议兼容保留。
+
+- 账号目录确认 FlashX 的 ID 为 `glm-5.3-flashx`，支持图片、最高档 max，倍率来自 `billing.credits`。这些是目录声明，不等于满窗口或完整能力实测。
+- Node 14 项、Python 8 项回归通过；覆盖菜单顺序、去除 MiMo、新增 FlashX、倍率刷新与名称重复刷新、配置保留及协议转换。
+- cb/wb 各完成一条 FlashX Responses 文本请求和一条 Anthropic 强制函数调用，共四条真实请求通过。未执行模型返回的工具代码；没有完成 FlashX 的识图、工具结果回灌、真实客户端完整验收。
+- Desktop 别名按字典序分配给上述五款，避免 profile 按别名排序后改变菜单顺序；Codex 使用 0–4 的 priority。别名及真实 ID 同步更新，不能把旧聊天的原生别名当作固定模型身份。
+
+## 本轮 R3 聊天与落盘记录
+
+已检查 Codex / WorkBuddy 的 DeepSeek、MiniMax、GLM、Kimi、MiMo 五个 R3 聊天及对应报告。五款均记录了本地读取/计算、直接识图、非 WorkBuddy 搜索/抓取、WorkBuddy 搜索、文件编辑回读。共同失败项为 WorkBuddy 抓取 OpenAI 配置文档：HTTP 403 / code 15021，`domain rejected by via routing policy`；搜索摘要不能替代抓取成功。该失败不归因为某一个聊天模型。
+
+R3 报告未记录最终输出中的异常乱码，但不能据此否定用户报告的 MiMo 适配问题。模型 UI、实际档位仍缺目视证据；Claude Desktop Code 的两厂商完整矩阵仍未完成。R3 原清单保留为历史，MiMo 项已作废；当前菜单以 README 为准。
+
+## 较早一轮修复（历史）
 
 当前 cb/wb 菜单各五款：DeepSeek-V4.1-Flash、GLM-5.3、Kimi-K3、MiniMax-M3.1-Flash、Xiaomi MiMo-V2.6-Pro。DeepSeek Pro、Space-Bunny、Hy4、Step-5 已移除；DeepSeek 官方供应商只保留 Flash。目录声明的 1M 窗口没有做满窗口负载验证。
 

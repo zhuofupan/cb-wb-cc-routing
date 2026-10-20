@@ -4,7 +4,7 @@ GitHub 仓库：[`zhuofupan/cb-wb-cc-routing`](https://github.com/zhuofupan/cb-w
 
 用 CC Switch 将 **DeepSeek 官方、CodeBuddy、WorkBuddy** 接入 **Claude Desktop 的 Code / Cowork**，并保留 Claude Code / Codex 的协议适配示例。目标是更换模型与额度来源，同时继续使用客户端的文件工具、Skills、MCP 和插件；不是把厂商聊天界面搬过来。
 
-2026-10-21 更新：CodeBuddy / WorkBuddy 各保留五款，移除 DeepSeek Pro、Space-Bunny、Hy4、Step-5；显示名为 `cb·模型名·窗口` / `wb·模型名·窗口`。Codex 使用 xhigh（极高）预设，上游仍发送 max。修复 MiMo 自定义工具参数及重复工具标记泄漏，增加目录刷新与运行统计。通过 21 项离线回归和 4 条代表性真实请求；完整应用内验收仍待完成，见 [最新验证记录](references/validation-20261021.md) 与 [三批完整测试清单 R3](references/manual-acceptance-r3.md)。
+2026-10-21 更新：CodeBuddy / WorkBuddy 各保留五款，按用户指定的性价比顺序排列：DeepSeek、MiniMax、GLM FlashX、GLM、Kimi。移除 Xiaomi MiMo，新增 GLM-5.3-FlashX；名称格式为 `cb·模型名 倍率x · 上下文` / `wb·模型名 倍率x · 上下文`。Codex 使用 xhigh（极高）预设，上游仍发送 max。最新测试结果及限制见[验证记录](references/validation-20261021.md)。
 
 ## 认证与依赖
 
@@ -27,15 +27,15 @@ CodeBuddy 的“只需 key”指认证，不表示 Claude Desktop 原生提供�
 
 名称使用小写 `cb·` / `wb·`。目录自动刷新、Codex 强度显示与安全运行统计见[配置说明](references/catalog-and-statistics.md)。
 
-| 模型 | 上游 ID | 目录声明上下文 |
-|---|---|---:|
-| DeepSeek-V4.1-Flash | `deepseek-v4.1-flash` | 1000000 |
-| GLM-5.3 | `glm-5.3` | 1000000 |
-| Kimi-K3 | `kimi-k3-2` | 1000000 |
-| MiniMax-M3.1-Flash | `minimax-m3.1-flash` | 1000000 |
-| Xiaomi MiMo-V2.6-Pro | `mimo-v2.6-pro` | 1000000 |
+| 模型（用户指定顺序） | 上游 ID | 倍率 | 目录声明上下文 |
+|---|---|---:|---:|
+| DeepSeek-V4.1-Flash | `deepseek-v4.1-flash` | 0.11x | 1M |
+| MiniMax-M3.1-Flash | `minimax-m3.1-flash` | 0.08x | 1M |
+| GLM-5.3-FlashX | `glm-5.3-flashx` | 0.19x | 1M |
+| GLM-5.3 | `glm-5.3` | 0.69x | 1M |
+| Kimi-K3 | `kimi-k3-2` | 1.62x | 1M |
 
-当前菜单按用户选择保留五款，DeepSeek Pro、Space-Bunny、Hy4 与 Step-5 已移除；历史测试记录保留。DeepSeek 官方菜单仅保留 `deepseek-flash`（V4.1-Flash，声明 1048576 token）。
+倍率与上下文于 2026-10-21 核对 WorkBuddy 账号目录，倍率可能随活动及账号变化，非固定 API 价格。此顺序按用户偏好，不是按倍率数值排序。DeepSeek Pro、Space-Bunny、Hy4、Step-5、Xiaomi MiMo 已从当前菜单移除；历史测试保留。DeepSeek 官方菜单仅保留 `deepseek-flash`（V4.1-Flash，声明 1048576 token）。
 
 ## 启动适配器
 
