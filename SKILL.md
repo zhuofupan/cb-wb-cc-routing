@@ -143,6 +143,25 @@ Claude Code 发厂商名（`claude-sonnet-4-5-20250929`），WorkBuddy 不认。
 
 细节、SQL 与验证命令见 [references/reasoning-effort.md](references/reasoning-effort.md)。
 
+## 上下文窗口：Claude Code 会把不认识的模型压到 200k
+
+上游 `contextWindow` 是 1M，但 Claude Code 的 `modelUsage.contextWindow` 实测只有
+**200000**，并据此提前压缩。唯一的开关是 `~/.claude/settings.json` 的 `env`：
+
+```json
+"CLAUDE_CODE_MAX_CONTEXT_TOKENS": "1000000"
+```
+
+- 实测：不设 → 200000；设 1M → **1000000**。
+- `CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT=1` **无效**（名字像、实测不动）。
+- 单次输出上限（`maxOutputTokens: 32000`）**改不动**，`CLAUDE_CODE_MAX_OUTPUT_TOKENS`
+  会被内置能力表夹住。
+- 这是**全局**值：换到真实窗口更小的模型（`minimax-m3-pay` 512k、`hy4-preview` 960k）
+  要把数字跟着降，否则长会话会被上游顶回来。
+
+Codex 侧不用管：目录里的 `context_window` 已经是上游最大值，95% 是它自己留的安全比例
+（改成 100 只多 50k，换随机 400）。详见 [references/context-window.md](references/context-window.md)。
+
 ## 按需读取参考文件
 
 - [references/requirements.md](references/requirements.md)
@@ -158,6 +177,9 @@ Claude Code 发厂商名（`claude-sonnet-4-5-20250929`），WorkBuddy 不认。
 - [references/reasoning-effort.md](references/reasoning-effort.md)
   —— 问「智能度 / 推理档位 / 为什么 Claude Code 里想得浅」、要把默认档调到最高时读。
   含三处落点、实测表、改库 SQL、验证命令。
+- [references/context-window.md](references/context-window.md)
+  —— 问「上下文只有 200k / 窗口怎么开到最大 / 1M 在哪设」时读。
+  只讲 `CLAUDE_CODE_MAX_CONTEXT_TOKENS` 这一个有效开关与它的风险。
 - [references/model-menu.md](references/model-menu.md)
   —— 要改 Claude Desktop 模型菜单、加映射、菜单项重复或显示不对时读。
 - [references/cc-switch-internals.md](references/cc-switch-internals.md)

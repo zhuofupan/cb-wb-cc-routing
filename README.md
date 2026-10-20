@@ -141,6 +141,12 @@ Codex 模型目录的默认档、Codex provider 的配置、以及适配器的 `
 且只在请求没写的时候补位 —— 在 Codex 里手动选低档依然生效。
 实测与改法见 [`references/reasoning-effort.md`](references/reasoning-effort.md)。
 
+**上下文窗口为什么只有 200k？**
+上游给的是 1M，但 Claude Code 对不认识的模型一律按 200k 规划，并提前压缩。
+在 `~/.claude/settings.json` 的 `env` 里加 `"CLAUDE_CODE_MAX_CONTEXT_TOKENS": "1000000"`
+即可（实测 200000 → 1000000）。注意它是全局值，换到窗口更小的模型要跟着降。
+见 [`references/context-window.md`](references/context-window.md)。
+
 ## 来源与许可
 
 - DSH 插件（WorkBuddy 认证）：https://github.com/corrinehu/dsh-workbuddy-connect （MIT）
@@ -159,6 +165,7 @@ Codex 模型目录的默认档、Codex provider 的配置、以及适配器的 `
 | 全部 | [`SKILL.md`](SKILL.md) —— 四条通路、四个必踩的坑、配置顺序 |
 | 报 11128 / 11133 / 超时 / `000` | [`references/troubleshooting.md`](references/troubleshooting.md) |
 | 调「智能度 / 推理档位」、Claude Code 里想得比 Codex 浅 | [`references/reasoning-effort.md`](references/reasoning-effort.md) |
+| 问「上下文只有 200k / 窗口怎么开到最大」 | [`references/context-window.md`](references/context-window.md) |
 | 改 Desktop 模型菜单、菜单项重复 | [`references/model-menu.md`](references/model-menu.md) |
 | 问「哪些软件必须开着 / 为什么连不上」 | [`references/requirements.md`](references/requirements.md) |
 | 问「有什么好处 / 跟直接用有什么差别」 | [`references/why.md`](references/why.md) |

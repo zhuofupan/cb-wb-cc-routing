@@ -20,6 +20,15 @@
   旧版适配器于是什么都不传，上游按自己的默认走 —— 同一个模型在 Codex 里
   想得很深、在 Claude Code 里想得很浅，就是这个原因。
 
+## 客户端其实也有开关（本仓库不用它）
+
+Claude Code 2.1.303 里有 `CLAUDE_CODE_EFFORT_LEVEL` 环境变量，可以直接把档位钉死
+（还有一个 `maxEffortLevel` 上限，优先级更高，会把超过它的值夹回去）。
+
+本仓库**故意不用**它：Desktop / Cowork 不读这个 env，而适配器的补位对两条通路都生效。
+知道它存在是为了排查「明明设了 max 还是原来那档」—— 优先级顺序是
+`maxEffortLevel` 夹制 > `/effort`、`--effort` 或 `CLAUDE_CODE_EFFORT_LEVEL` > 模型默认。
+
 ## 实测：所有模型都接受 `max`（2026-10-20）
 
 上游暴露的档位拼写是固定的五个：`low` / `medium` / `high` / `xhigh` / `max`。
