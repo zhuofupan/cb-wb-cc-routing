@@ -1,6 +1,16 @@
 # 2026-10-21：模型调整与测试结果
 
-## 当前配置与最终验收
+## 原生适配更新（最新）
+
+- 本轮离线回归：Node 39 项、Python 12 项、Windows PowerShell 5.1 supervisor 检查通过；技能入口校验通过。
+- Codex 目录保留官方模板指令；默认档与最高档分开，档位记忆跨网关重启保留。Codex 和 Desktop 均移除适配器固定压缩阈值，交给当前客户端原生策略。
+- Responses 客户端 tool_search、Anthropic tool_reference 支持按需加载，保留具名工具和并行调用控制；不把托管工具伪装成本地函数。[Codex 细节](native-integration.md)、[Desktop 细节](claude-desktop-native.md)。
+- CB/WB 真实 Anthropic 三轮工具引用往返通过；Claude Code 2.1.303 两条路由均完成 ToolSearch → MCP 调用。Codex CLI 0.163.0 两条路由均完成终端命令及结果回答。CLI 不代替 Desktop 视觉验收。
+- 修复 [1m] 后缀绕过精确路由的问题；两条路由上的 MiniMax/GLM 后缀请求均发往对应上游 ID 并成功回答。
+- 网关临时拒绝最多补试一次，取消终止等待，部分流不重放。此项不代表 Desktop 自己的外层重试已更改。
+- 仍未验证满上下文容量、长会话实际压缩和修改前后同条件性能。Cowork junction、原生安全分类服务故障及受保护的 Windows 初始默认策略仍分别保留为限制。
+
+## 较早的配置与用户验收
 
 2026-10-21，用户明确确认“现在所有功能都测试好了”。此项记为用户对当前使用范围的客户端验收确认；下面的历史失败、旧型号记录和未执行的满 1M token 负载测试仍分别保留，不把该确认扩写为未记录的逐功能矩阵。
 
@@ -44,9 +54,20 @@ R3 报告未记录最终输出中的异常乱码，但不能据此否定用户�
 
 ## 证据分层
 
+### 2026-10-21 输出预算回归
+
+- 根因：`responses-codec.mjs` 在 Codex 未传 `max_output_tokens` 时固定发 16384，`anthropic-codec.mjs` 在 Claude 未传 `max_tokens` 时固定发 8192。两次真实 Codex turn 都在 16,385 output tokens 处结束为 `max_output_tokens`，当时输入仅约 184k / 950k。
+- 修正：改为读取账号目录的逐模型 `maxOutputTokens`（DeepSeek 128000、MiniMax 128000、GLM 131072），显式客户端值仍优先，并按剩余窗口收敛。
+- 修正：Codex 目录自动压缩阈值改为 `窗口 − 输出上限 − 32000`，`context_window` / `max_context_window` 保持模型声明的 1M；Claude 的 `autoCompactWindow` 按别名路由到对应模型计算，不再统一 1M。
+- 真实接口：三款分别用各自声明上限发 `max_tokens`，均 HTTP 200；本机 CodeBuddy 网关重启后，MiniMax Responses 探针返回 completed，日志记录 `max_tokens: 128000`。
+- 长输出：2026-10-21 经本机 18792 发 `max_output_tokens: 60000`，上游 `completed`，`output_tokens: 17708`（其中推理 14107），超过旧 16384 上限后正常结束，不再报 `max_output_tokens`。另有 `max_output_tokens: 24000` 探针以 `incomplete / max_output_tokens` 结束，usage 恰为 24000，证明客户端预算被如实执行而非代理另加 16K 限制。
+- 六款路由：重启后的 18792 上，`deepseek-v4.1-flash`、`minimax-m3.1-flash`、`glm-5.3-flashx` 各发一条 Responses 请求均 `completed`；日志记录 `max_tokens` 分别为 128000 / 128000 / 131072。
+- 三别名经 CC Switch：`claude-fable-5 → deepseek-v4.1-flash`、`claude-fable-5-1 → minimax-m3.1-flash`、`claude-haiku-5-5 → glm-5.3-flashx` 经 `15721/claude-desktop/v1/messages` 均 HTTP 200 并返回 OK。
+
+
 | 层级 | 当前结果 | 限制 |
 |---|---|---|
-| 离线回归 | Node 13 项、Python 8 项通过 | 本地假上游，不证明真实客户端全部功能 |
+| 离线回归 | Node 21 项、Python 9 项通过 | 本地假上游，不证明真实客户端全部功能 |
 | 真实接口 | cb/wb 各一条 MiMo 自定义工具调用、一条 MiniMax 中文/表情回复，共四条完成 | 代表性短探针；没有执行返回的模型代码 |
 | 真实接口文本 | 四条响应无替换字符、无伪工具标记泄漏；MiMo 参数中的中文/表情完整 | 不是所有长回答均无异常的保证 |
 | 上游档位 | 四条请求日志均为 max | 不证明供应商实际投入最高计算量 |

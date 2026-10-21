@@ -1,10 +1,12 @@
 {
   "mode": "codebuddy",
   "port": 18792,
+  "entry": "cb-gateway.mjs",
+  "alwaysStart": true,
   "model": "deepseek-v4.1-flash",
   "fastModel": "deepseek-v4.1-flash",
-  "effortDefault": "max",
-  "effortPolicy": "highest",
+  "effortDefault": "high",
+  "effortPolicy": "client",
   "effortMaxByModel": {},
   "followClients": false,
   "exactRoutes": {
@@ -17,21 +19,24 @@
   "models": [
     {
       "id": "deepseek-v4.1-flash",
-      "name": "cb/ Deepseek-V4.1-Flash (0.11x) \u00b7 1M",
+      "name": "cb/ Deepseek-V4.1-Flash (0.11x) · 1M",
       "context": 1000000,
-      "multiplier": "0.11"
+      "multiplier": "0.11",
+      "maxOutput": 128000
     },
     {
       "id": "minimax-m3.1-flash",
-      "name": "cb/ MiniMax-M3.1-Flash (0.08x) \u00b7 1M",
+      "name": "cb/ MiniMax-M3.1-Flash (0.08x) · 1M",
       "context": 1000000,
-      "multiplier": "0.08"
+      "multiplier": "0.08",
+      "maxOutput": 128000
     },
     {
       "id": "glm-5.3-flashx",
-      "name": "cb/ GLM-5.3-FlashX (0.19x) \u00b7 1M",
+      "name": "cb/ GLM-5.3-FlashX (0.19x) · 1M",
       "context": 1000000,
-      "multiplier": "0.19"
+      "multiplier": "0.19",
+      "maxOutput": 131072
     }
   ],
   "upstream": "https://copilot.tencent.com"

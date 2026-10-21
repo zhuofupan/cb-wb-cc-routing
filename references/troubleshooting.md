@@ -93,6 +93,7 @@ system 里没这段）。早先把它判成「网关短时拒绝」是错的。
 | CLI 直连能通、Code 标签 400 | system 里的 CLI 身份句（走 Agent SDK 才有） |
 | **新开对话第一条必 400，老会话续写正常** | 新会话首轮的 system 里多出「反馈」句（来源三） |
 | 请求看起来「超时 / 返回 000」 | 没带 `--noproxy '*'`，被系统代理吃掉 |
+| 回复写到一半报 `max_output_tokens` | 适配器把缺省输出上限设成 16K/8K，或输入已占满窗口未压缩 |
 
 ## 一次重试 + 失败请求落盘
 
@@ -145,3 +146,26 @@ curl -s --noproxy '*' http://127.0.0.1:18791/health
 
 ⚠️ `start-workbuddy.ps1` 故意**不发**这个请求：代理下它可能卡几秒。它改用了
 `Get-NetTCPConnection -State Listen` 判断端口 —— 监听器不会说谎。
+# 计划任务重复启动 supervisor 或清理后网关未恢复
+
+再次修复（2026-10-21）：`Write-Log` 使用 `Write-Output` 导致
+`Start-Profile` 返回日志字符串（或字符串与 Process 的数组），监控误判
+`-not $child.HasExited` 为真，已退出的网关无法自动恢复。日志改走 Host 流，
+监控仅接受真实 Process、刷新进程状态并复核监听端口。
+新增 `tests/supervisor.test.ps1` 覆盖已有监听和闲置 profile 的返回值污染。
+实测依次结束 WB/CB 网关后，两者均由同一 supervisor 自动恢复并通过健康检查；
+Codex Responses 与 CC Switch Desktop Messages 路径均 HTTP 200 返回 OK。
+Node 25、Python 10 项离线回归通过。
+
+`adapter-tick.cmd` 只调用 `start-workbuddy.ps1 -Watch`，不再复制客户端目标判断。
+启动条件统一由 supervisor 判断，必须包含 profile 的 `alwaysStart`；客户端经
+CC Switch 的 15721 代理访问时，不能仅凭客户端配置中没有 18792 就跳过恢复。
+supervisor 持有 `Local\CodexWorkBuddyAdapterSupervisor` 互斥锁，覆盖启动等待与
+整个监控循环；已有实例时，新 tick 立即退出。单个 profile 启动失败不能阻止
+另一个 profile 启动或后续重试。没有子进程时也继续监控后续切换的 profile。
+
+2026-10-21 验证：从两个网关均停止的状态，经实际计划任务恢复 CodeBuddy
+18792；连续两次 tick 后 supervisor PID 不变且仅一个。使用本地 Desktop
+profile 的网关地址、认证及模型别名，经 15721/claude-desktop/v1/messages
+转发到 GLM-5.3-FlashX，HTTP 200 并返回 OK。Node 21 项、Python 9 项回归通过。
+这是代理链路验证，未代替真实 Desktop 界面验收。

@@ -12,7 +12,7 @@
 //   - top_k, metadata, service_tier are ignored
 // Nothing here logs request, response, tool, or credential content.
 import { randomUUID } from 'node:crypto';
-import { parseChatStream } from './responses-codec.mjs';
+import { parseChatStream, resolveMaxOutput, estimateTokens } from './responses-codec.mjs';
 
 const newId = () => `msg_${randomUUID().replaceAll('-', '')}`;
 const newToolId = () => `toolu_${randomUUID().replaceAll('-', '').slice(0, 24)}`;
@@ -92,30 +92,37 @@ function toolResultText(content) {
     .map(block => {
       if (block.type === 'text') return block.text;
       if (block.type === 'image') return '[Image attached in the following user message.]';
+      if (block.type === 'tool_reference') return `Loaded tool: ${block.tool_name}`;
       return '';
     })
     .join('\n');
-}
-
-/** Rough prompt size, used only for the initial usage estimate. */
-function estimateTokens(messages) {
-  let chars = 0;
-  for (const message of messages) {
-    if (typeof message.content === 'string') chars += message.content.length;
-    else if (Array.isArray(message.content)) {
-      for (const part of message.content) chars += part.text?.length ?? 0;
-    }
-    for (const call of message.tool_calls ?? []) chars += (call.function?.arguments ?? '').length;
-  }
-  return Math.max(1, Math.round(chars / 4));
 }
 
 /**
  * Anthropic Messages request -> Chat Completions request.
  * `resolveModel` maps a Claude model id onto a model the upstream serves.
  */
-export function toChat(body, resolveModel) {
+export function toChat(body, resolveModel, limits = {}) {
   const messages = [];
+  const declared = new Map((body.tools ?? []).map(tool => [tool.name, tool]));
+  const loaded = new Set();
+  for (const message of body.messages ?? []) {
+    for (const block of Array.isArray(message.content) ? message.content : []) {
+      // Already used tools must remain available when the client drops an
+      // earlier search result during its own history compaction.
+      if (block.type === 'tool_use' && declared.has(block.name)) loaded.add(block.name);
+      if (block.type !== 'tool_result' || block.is_error || !Array.isArray(block.content)) continue;
+      for (const part of block.content) {
+        if (part.type !== 'tool_reference') continue;
+        if (!declared.has(part.tool_name)) throw new Error('Tool search referenced an undeclared tool');
+        loaded.add(part.tool_name);
+      }
+    }
+  }
+  if (body.tool_choice?.type === 'tool') {
+    if (!declared.has(body.tool_choice.name)) throw new Error('Requested tool_choice is not declared');
+    loaded.add(body.tool_choice.name);
+  }
   const system = systemText(body.system);
   if (system) messages.push({ role: 'system', content: system });
 
@@ -134,7 +141,7 @@ export function toChat(body, resolveModel) {
           toolResults.push({
             role: 'tool',
             tool_call_id: block.tool_use_id,
-            content: toolResultText(block.content),
+            content: (block.is_error ? 'Tool error: ' : '') + toolResultText(block.content),
           });
           // Chat Completions tool messages are text-only. Preserve pixels from
           // Read/MCP results in the next user message instead of discarding them.
@@ -171,14 +178,17 @@ export function toChat(body, resolveModel) {
     }
   }
 
-  const tools = (body.tools ?? []).map(tool => ({
+  let tools = (body.tools ?? []).filter(tool => !tool.defer_loading || loaded.has(tool.name)).map(tool => {
+    if (tool.type && tool.type !== 'custom') throw new Error(`Unsupported hosted tool type: ${tool.type}`);
+    return {
     type: 'function',
     function: {
       name: tool.name,
       description: tool.description ?? '',
       parameters: tool.input_schema ?? { type: 'object', properties: {} },
     },
-  }));
+    };
+  });
 
   let toolChoice;
   const choice = body.tool_choice;
@@ -186,6 +196,8 @@ export function toChat(body, resolveModel) {
   else if (choice?.type === 'any') toolChoice = 'required';
   else if (choice?.type === 'none') toolChoice = 'none';
   else if (choice?.type === 'tool') toolChoice = { type: 'function', function: { name: choice.name } };
+  if (choice?.type === 'tool') tools = tools.filter(tool => tool.function.name === choice.name);
+  if (choice?.type === 'none') tools = [];
 
   const model = resolveModel(body.model);
   // Claude Code states its reasoning level as `output_config.effort`
@@ -198,14 +210,27 @@ export function toChat(body, resolveModel) {
     model,
     messages,
     stream: true,
-    max_tokens: body.max_tokens ?? 8192,
+    // Claude Code normally sends max_tokens, but older builds and some SDK
+    // callers omit it. Falling back to 8192 clipped writes far below what the
+    // upstream accepts; use the model ceiling and shrink only when the prompt
+    // leaves less room than that.
+    max_tokens: resolveMaxOutput({
+      requested: body.max_tokens,
+      modelMax: limits.maxOutput,
+      contextWindow: limits.context,
+      estimatedInput: estimateTokens(messages, tools),
+    }),
     ...(effort ? { reasoning_effort: effort } : {}),
     ...(body.temperature !== undefined ? { temperature: body.temperature } : {}),
     ...(body.top_p !== undefined ? { top_p: body.top_p } : {}),
     ...(body.stop_sequences?.length ? { stop: body.stop_sequences } : {}),
+    ...(choice?.disable_parallel_tool_use !== undefined ? { parallel_tool_calls: !choice.disable_parallel_tool_use } : {}),
     ...(tools.length ? { tools, ...(toolChoice ? { tool_choice: toolChoice } : {}) } : {}),
   };
-  return { model, request, estimatedInput: estimateTokens(messages) };
+  return { model, request, estimatedInput: estimateTokens(messages, tools), toolStats: {
+    supplied: declared.size, deferred: (body.tools ?? []).filter(tool => tool.defer_loading).length,
+    exposed: tools.length, schema_bytes: Buffer.byteLength(JSON.stringify(tools), 'utf8'),
+  } };
 }
 
 const STOP_REASONS = {

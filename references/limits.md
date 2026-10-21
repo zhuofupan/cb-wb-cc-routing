@@ -4,6 +4,7 @@
 
 - thinking / redacted_thinking 不伪造 Anthropic 签名；不能承诺完整保留模型推理重放。
 - count_tokens 是字符估算，不是真实 tokenizer；窗口显示不等于真实容量。
+- 单次输出有独立上限（当前三款 128K/128K/131072）。`max_output_tokens` 失败不等于输入窗口用尽；不要用固定 16K/8K 兜底或据此判断模型容量。
 - 不实现全部官方服务端工具、/responses/compact、远端响应存储或 Responses WebSocket，不把未知接口伪装为成功。
 - 任意插件、连接器、子代理、定时任务、断线恢复、长会话压缩尚未逐项验收。客户端函数/MCP 协议通过不能外推为全部插件通过。
 - 缺少完整 effort 范围时，max 被接受不代表最高计算量。highest 策略会覆盖低档，应按用户偏好启停。

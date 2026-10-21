@@ -4,6 +4,51 @@ import { randomUUID } from 'node:crypto';
 const id = prefix => `${prefix}_${randomUUID().replaceAll('-', '')}`;
 const toolHistory = new Map();
 const names = name => name.replace(/[^a-zA-Z0-9_-]/g, '_');
+const SEARCH_NAME = 'codex_tool_search';
+
+// Last-resort output budget when the caller passes no model metadata at all.
+// The gateway always supplies the catalog's per-model ceiling, so this value is
+// only reached by standalone codec use. Never treat it as the real limit.
+const FALLBACK_OUTPUT = 16384;
+const MIN_OUTPUT = 16;
+
+export function estimateTokens(messages, tools = []) {
+  let chars = tools.length ? Buffer.byteLength(JSON.stringify(tools), 'utf8') : 0;
+  for (const message of messages) {
+    if (typeof message.content === 'string') chars += Buffer.byteLength(message.content, 'utf8');
+    else if (Array.isArray(message.content)) {
+      for (const part of message.content) {
+        if (part.text) chars += Buffer.byteLength(part.text, 'utf8');
+        // Images are billed as pixels, not characters. Reserve a fixed slice.
+        else if (part.image_url) chars += 12000;
+      }
+    }
+    for (const call of message.tool_calls ?? []) chars += Buffer.byteLength((call.function?.name ?? '') + (call.function?.arguments ?? ''), 'utf8');
+  }
+  // UTF-8 bytes account for Chinese text and tool schemas. This remains an
+  // estimate, not the upstream tokenizer or a compaction trigger.
+  return Math.max(1, Math.ceil(chars / 3));
+}
+
+/**
+ * Pick an output ceiling that the upstream can actually honour.
+ *
+ * `requested` is the client's value and wins when present, but it is still
+ * clamped to the model ceiling and to the room left after input. Without this,
+ * a client that omits max_output_tokens inherits an arbitrary small default
+ * and large writes end as `incomplete: max_output_tokens`.
+ */
+export function resolveMaxOutput({ requested, modelMax, contextWindow, estimatedInput, reserve = 2048 } = {}) {
+  const positives = [modelMax, contextWindow].filter(value => Number.isSafeInteger(value) && value > 0);
+  let ceiling = positives.length ? Math.min(...positives) : Number.MAX_SAFE_INTEGER;
+  if (Number.isSafeInteger(contextWindow) && contextWindow > 0) {
+    ceiling = Math.min(ceiling, Math.max(MIN_OUTPUT, contextWindow - (estimatedInput ?? 0) - reserve));
+  }
+  const baseline = Number.isSafeInteger(requested) && requested > 0
+    ? requested
+    : (Number.isSafeInteger(modelMax) && modelMax > 0 ? modelMax : FALLBACK_OUTPUT);
+  return Math.max(MIN_OUTPUT, Math.min(baseline, ceiling));
+}
 
 function customInput(args) {
   let parsed;
@@ -24,18 +69,34 @@ function content(parts) {
   });
 }
 
-export function toChat(body) {
+export function toChat(body, limits = {}) {
   if (body.previous_response_id) throw new Error('Send complete input history; previous_response_id is unsupported');
   const registry = new Map();
   const tools = [];
-  function addTools(items, namespace) {
+  const input = typeof body.input === 'string' ? [{ role: 'user', content: body.input }] : body.input ?? [];
+  const clientSearch = body.tools?.find(t => t.type === 'tool_search' && t.execution === 'client');
+  function addTools(items, namespace, loaded = false, deferred = false) {
     for (const t of items ?? []) {
-      if (t.type === 'namespace') { addTools(t.tools, t.name); continue; }
-      // Chat Completions has no deferred-tool discovery. All supplied schemas
-      // are exposed eagerly below, so its native tool_search is unnecessary.
-      if (t.type === 'tool_search') continue;
+      if (t.type === 'namespace') { addTools(t.tools, t.name, loaded, deferred || t.defer_loading === true); continue; }
+      if (t.type === 'tool_search') {
+        // Codex executes client discovery with its normal permission checks.
+        // Hosted search falls back to eagerly supplied schemas.
+        if (t.execution !== 'client') continue;
+        if (!t.parameters) throw new Error('Client tool_search requires parameters');
+        registry.set(SEARCH_NAME, t);
+        tools.push({ type: 'function', function: { name: SEARCH_NAME,
+          description: t.description ?? 'Search for tools needed to continue the task.', parameters: t.parameters } });
+        continue;
+      }
+      if (clientSearch && !loaded && (deferred || t.defer_loading === true)) continue;
       if (!['function', 'custom'].includes(t.type)) throw new Error(`Unsupported tool type: ${t.type}`);
       const name = names(namespace ? `${namespace}__${t.name}` : t.name);
+      if (name === SEARCH_NAME && clientSearch) throw new Error('Tool name collides with client tool search');
+      if (registry.has(name)) {
+        const previous = registry.get(name);
+        if (previous.name !== t.name || previous.namespace !== namespace) throw new Error('Tool names collide after namespace conversion');
+        tools.splice(tools.findIndex(tool => tool.function.name === name), 1);
+      }
       registry.set(name, { ...t, namespace });
       tools.push({ type: 'function', function: {
         name, description: t.description ?? '',
@@ -46,14 +107,22 @@ export function toChat(body) {
     }
   }
   addTools(body.tools);
+  for (const item of input) if (item.type === 'tool_search_output') addTools(item.tools, undefined, true);
   const messages = [];
   const pendingImages = [];
   const flushImages = () => { if (pendingImages.length) messages.push({ role: 'user', content: pendingImages.splice(0) }); };
   if (body.instructions) messages.push({ role: 'system', content: body.instructions });
-  for (const item of typeof body.input === 'string' ? [{ role: 'user', content: body.input }] : body.input ?? []) {
+  for (const item of input) {
     if (item.type === 'reasoning') continue;
+    if (['tool_search_call', 'tool_search_output'].includes(item.type) && item.execution === 'server') continue;
     if (!['function_call_output', 'custom_tool_call_output'].includes(item.type)) flushImages();
-    if (item.type === 'function_call' || item.type === 'custom_tool_call') {
+    if (item.type === 'tool_search_call') {
+      messages.push({ role: 'assistant', content: null, reasoning_content: toolHistory.get(item.call_id) ?? '',
+        tool_calls: [{ id: item.call_id, type: 'function', function: { name: SEARCH_NAME, arguments: JSON.stringify(item.arguments) } }] });
+    } else if (item.type === 'tool_search_output') {
+      messages.push({ role: 'tool', tool_call_id: item.call_id,
+        content: item.status === 'failed' ? 'Tool search failed. Try another query.' : 'Tool search completed. Loaded tool definitions are available in the tool list.' });
+    } else if (item.type === 'function_call' || item.type === 'custom_tool_call') {
       const custom = item.type === 'custom_tool_call';
       const originalName = item.namespace ? `${item.namespace}__${item.name}` : item.name;
       const call = { id: item.call_id, type: 'function', function: {
@@ -82,15 +151,22 @@ export function toChat(body) {
   flushImages();
   let toolChoice = body.tool_choice ?? 'auto';
   if (toolChoice && typeof toolChoice === 'object') {
-    const chosen = names(toolChoice.namespace ? `${toolChoice.namespace}__${toolChoice.name}` : toolChoice.name ?? '');
+    const chosen = toolChoice.type === 'tool_search' ? SEARCH_NAME : names(toolChoice.namespace ? `${toolChoice.namespace}__${toolChoice.name}` : toolChoice.name ?? '');
     if (!registry.has(chosen)) throw new Error('Requested tool_choice is not declared');
     tools.splice(0, tools.length, ...tools.filter(t => t.function.name === chosen));
     toolChoice = 'required';
   }
-  return { registry, request: {
+  const estimatedInput = estimateTokens(messages, tools);
+  return { registry, estimatedInput, request: {
     model: body.model, messages, stream: true,
-    max_tokens: body.max_output_tokens ?? 16384,
+    max_tokens: resolveMaxOutput({
+      requested: body.max_output_tokens,
+      modelMax: limits.maxOutput,
+      contextWindow: limits.context,
+      estimatedInput,
+    }),
     ...(body.reasoning?.effort ? { reasoning_effort: body.reasoning.effort } : {}),
+    ...(body.parallel_tool_calls !== undefined ? { parallel_tool_calls: body.parallel_tool_calls } : {}),
     ...(tools.length ? { tools, tool_choice: toolChoice } : {}),
   } };
 }
@@ -147,12 +223,12 @@ export async function* parseChatStream(upstream) {
   if (!inside && pending) yield { choices: [{ delta: { content: pending } }] };
 }
 
-export async function convertStream(upstream, model, registry, send, onUsage) {
+export async function convertStream(upstream, model, registry, send, onUsage, parallelToolCalls = true) {
   let seq = 0;
   const emit = (type, data = {}) => send(type, { type, sequence_number: seq++, ...data });
   const response = { id: id('resp'), object: 'response', created_at: Math.floor(Date.now() / 1000),
     model, status: 'in_progress', output: [], error: null, incomplete_details: null,
-    parallel_tool_calls: true, store: false };
+    parallel_tool_calls: parallelToolCalls, store: false };
   emit('response.created', { response: { ...response } });
   emit('response.in_progress', { response: { ...response } });
   const calls = new Map();
@@ -198,6 +274,16 @@ export async function convertStream(upstream, model, registry, send, onUsage) {
     const spec = registry.get(call.name);
     if (!spec) throw new Error('Upstream requested an undeclared tool');
     const index = response.output.length;
+    if (spec.type === 'tool_search') {
+      const item = { id: id('ts'), type: 'tool_search_call', execution: 'client',
+        status: 'completed', call_id: call.call_id, arguments: JSON.parse(call.args) };
+      response.output.push(item);
+      emit('response.output_item.added', { output_index: index, item: { ...item, status: 'in_progress' } });
+      emit('response.output_item.done', { output_index: index, item });
+      toolHistory.set(call.call_id, reasoning);
+      if (toolHistory.size > 4096) toolHistory.delete(toolHistory.keys().next().value);
+      continue;
+    }
     const custom = spec.type === 'custom';
     const item = { id: id(custom ? 'ctc' : 'fc'), type: custom ? 'custom_tool_call' : 'function_call',
       status: 'completed', call_id: call.call_id, name: spec.name,

@@ -20,12 +20,15 @@
 //   GET  /health
 import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
+import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { timingSafeEqual, randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { usageRecord, appendUsage } from './usage-ledger.mjs';
+import { retryUpstream, idleLimitedStream } from './upstream-retry.mjs';
 import { cachedModels, mergeSelected, syncCodexCatalog } from './catalog-sync.mjs';
+import { CLIENT_LEVELS, DEFAULT_EFFORT, mapEffort, levelIndex } from './effort-map.mjs';
 
 const argv = process.argv.slice(2);
 const flag = name => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
@@ -69,6 +72,9 @@ const MODEL_ROUTES = (config.modelRoutes ?? []).map(route => ({
 }));
 function resolveModel(requested) {
   if (!requested) return DEFAULT_MODEL;
+  // Context suffixes are client metadata, including on exact Desktop aliases.
+  // Strip them before matching, or MiniMax/GLM silently fall back to DeepSeek.
+  requested = requested.replace(/\[1m\]$/i, '');
   if (EXACT_ROUTES[requested]) return EXACT_ROUTES[requested];
   if (/^claude/i.test(requested)) {
     for (const route of MODEL_ROUTES) if (route.pattern.test(requested)) return route.model;
@@ -76,7 +82,14 @@ function resolveModel(requested) {
   }
   // `[1m]` is Claude Code's context-window declaration; it strips the suffix
   // before sending, but a proxy in between may not — drop it defensively.
-  return requested.replace(/\[1m\]$/i, '');
+  return requested;
+}
+
+// Output ceilings come from the live catalog. A static fallback keeps requests
+// working before the first refresh and for models the account cache omits.
+function modelLimits(model) {
+  const row = config.models?.find(m => (m.id ?? m.slug) === model);
+  return { maxOutput: row?.maxOutput, context: row?.context };
 }
 
 // Neither client states the reasoning effort for us. Codex sends one global
@@ -85,6 +98,37 @@ function resolveModel(requested) {
 // builds. `effortDefault` fills the empty slot only — an explicit level from
 // the client still wins, so a cheaper pick keeps working.
 const EFFORT_DEFAULT = config.effortDefault;
+
+// Remember the last effort each client picked, per model. Both clients resend
+// their picker value on every request, but Claude's alias resolution and old
+// threads can drop it; the remembered value then keeps the user's last choice
+// instead of falling back to a global default. Persist only client/model/level;
+// the current model mapping and speed cap still apply after a restart.
+const rememberedEffort = new Map();
+const effortStatePath = `${SETTINGS}.effort.json`;
+try {
+  for (const [key, value] of Object.entries(JSON.parse(readFileSync(effortStatePath, 'utf8')))) {
+    if (CLIENT_LEVELS.includes(value)) rememberedEffort.set(key, value);
+  }
+} catch (e) {
+  if (e.code !== 'ENOENT') console.log(JSON.stringify({ event: 'effort_state_read_failed', code: e.code ?? 'invalid_json' }));
+}
+function effortFor(clientId, model, requested) {
+  const key = `${clientId}:${model}`;
+  const normalised = requested ? mapEffort(model, requested) : undefined;
+  if (normalised) {
+    if (rememberedEffort.get(key) !== normalised) {
+      rememberedEffort.set(key, normalised);
+      try {
+        const temp = `${effortStatePath}.${process.pid}.tmp`;
+        writeFileSync(temp, JSON.stringify(Object.fromEntries(rememberedEffort)) + '\n');
+        renameSync(temp, effortStatePath);
+      } catch (e) { console.log(JSON.stringify({ event: 'effort_state_write_failed', code: e.code })); }
+    }
+    return normalised;
+  }
+  return rememberedEffort.get(key) ?? config.models?.find(m => (m.id ?? m.slug) === model)?.defaultEffort ?? DEFAULT_EFFORT[model] ?? EFFORT_DEFAULT;
+}
 
 // Idle self-exit: the adapter is only needed while a client is actually using
 // it. IDLE_EXIT_MINUTES unset -> 20; 0 disables the timer (stay resident).
@@ -105,8 +149,7 @@ function refreshCatalog() {
       ? await cachedModels(config.catalogCacheDir ?? join(homedir(), '.codebuddy', 'local_storage'))
       : await client.fetchModels(await store.resolve());
     config.models = mergeSelected(config.models ?? [], upstream, MODE, config.effortMaxByModel);
-    config.effortMaxByModel = { ...config.effortMaxByModel, ...Object.fromEntries(config.models.map(m => [m.id ?? m.slug, m.effort])) };
-    if (config.codexCatalog) await syncCodexCatalog(resolve(BASE_DIR, config.codexCatalog), config.models, config.effortPolicy === 'highest');
+    if (config.codexCatalog) await syncCodexCatalog(resolve(BASE_DIR, config.codexCatalog), config.models);
     catalogState = { source: upstream.length ? (MODE === 'codebuddy' ? 'account-cache' : 'upstream') : 'configured',
       refreshed_at: new Date().toISOString(), available_models: upstream.length,
       new_model_ids: upstream.map(m => m.id ?? m.slug).filter(id => id && !config.models.some(m => (m.id ?? m.slug) === id)) };
@@ -154,8 +197,6 @@ function upstreamHeaders(key) {
 // payloads for short windows and documents it as "retry in a few minutes".
 // One retry after a pause turns such a window into a slow turn instead of a red
 // bubble; a genuine payload problem still surfaces on the second attempt.
-const TRANSIENT_CHANNEL_ERROR = /"code"\s*:\s*"?11128/;
-const CHANNEL_RETRY_MS = 2500;
 async function callUpstream(credential, payload, signal) {
   if (MODE === 'codebuddy') {
     try {
@@ -173,12 +214,11 @@ async function callUpstream(credential, payload, signal) {
   return client.chatStream(credential, payload, signal);
 }
 async function chatStreamWithChannelRetry(credential, payload, signal) {
-  const first = await callUpstream(credential, payload, signal);
-  if (first.ok || !TRANSIENT_CHANNEL_ERROR.test(String(first.message ?? ''))) return first;
-  console.log(JSON.stringify({ event: 'channel_retry', status: first.status, mode: MODE }));
-  await new Promise(done => setTimeout(done, CHANNEL_RETRY_MS));
-  if (signal.aborted) return first;
-  return callUpstream(credential, payload, signal);
+  return retryUpstream(attemptSignal => callUpstream(credential, payload, attemptSignal), {
+    signal, headerTimeoutMs: config.upstreamHeaderTimeoutMs ?? 180000,
+    retryDelayMs: config.upstreamRetryDelayMs ?? 2500,
+    onRetry: result => console.log(JSON.stringify({ event: 'channel_retry', status: result.status, mode: MODE })),
+  });
 }
 
 // Only failed payloads are kept: the 11128 class is payload-specific, so the
@@ -240,7 +280,7 @@ function sanitizeChannelMarkers(request) {
 const SANITIZE = config.sanitizeChannelUrls ?? MODE === 'codebuddy';
 const NEUTRALISE_IDENTITY = config.neutraliseCodexIdentity ?? MODE === 'codebuddy';
 
-function prepareUpstreamBody(raw) {
+function prepareUpstreamBody(raw, clientId = 'unknown') {
   const body = JSON.parse(raw);
   if (SANITIZE) sanitizeChannelMarkers(body);
   if (NEUTRALISE_IDENTITY) neutraliseForeignIdentity(body);
@@ -253,24 +293,21 @@ function prepareUpstreamBody(raw) {
       body.tool_choice = 'required';
     }
   }
-  // Desktop may clamp effort to the capabilities of its Claude alias rather
-  // than the routed model. An explicit highest policy requests the real
-  // model's configured ceiling independently of that UI alias.
-  if (config.effortPolicy === 'highest') {
-    body.reasoning_effort = 'max';
-  }
-  if (EFFORT_DEFAULT !== undefined && (body.reasoning_effort === undefined || body.reasoning_effort === null || body.reasoning_effort === '')) {
-    body.reasoning_effort = EFFORT_DEFAULT;
-    console.log(JSON.stringify({ event: 'effort_default', model: body.model, effort: EFFORT_DEFAULT, mode: MODE }));
-  }
-  // Some upstream models accept "max" without implementing that level.
-  // Respect their declared ceiling while preserving an explicit lower effort.
+  // The client's picker value always wins. When it is absent, reuse the level
+  // the same client last picked for this model; only a client that has never
+  // chosen one falls back to the upstream catalog default.
+  const requested = body.reasoning_effort;
+  const chosen = effortFor(clientId, body.model, requested);
+  // A per-model ceiling is an operator speed cap, not a default: it caps an
+  // explicit higher pick but never raises a lower one.
   const ceiling = config.effortMaxByModel?.[body.model];
-  const levels = ['low', 'medium', 'high', 'xhigh', 'max'];
-  if (ceiling && levels.indexOf(body.reasoning_effort) > levels.indexOf(ceiling)) {
-    body.reasoning_effort = ceiling;
+  let effort = mapEffort(body.model, config.effortPolicy === 'highest' ? 'max' : chosen);
+  if (ceiling && mapEffort(body.model, ceiling) && levelIndex(effort) > levelIndex(mapEffort(body.model, ceiling))) {
+    effort = mapEffort(body.model, ceiling);
   }
-  console.log(JSON.stringify({ event: 'upstream_effort', model: body.model, effort: body.reasoning_effort, mode: MODE }));
+  body.reasoning_effort = effort;
+  console.log(JSON.stringify({ event: 'upstream_effort', model: body.model, requested: requested ?? null,
+    effort: body.reasoning_effort, remembered: !requested, mode: MODE }));
   return body;
 }
 
@@ -348,7 +385,7 @@ const server = createServer(async (req, res) => {
   });
 
   if (path === '/health' && req.method === 'GET') {
-    return json(res, 200, { ready: true, mode: MODE, port: PORT, requests: count });
+    return json(res, 200, { ready: true, mode: MODE, port: PORT, requests: count, active_requests: active - 1, pid: process.pid });
   }
   // The gateway only serves local CLIs: a browser Origin means cross-origin.
   if (req.headers.origin && MODE === 'codebuddy') {
@@ -384,7 +421,7 @@ const server = createServer(async (req, res) => {
           owned_by: MODE,
           display_name: m.name ?? m.display_name,
           ...(m.context ? { context_window: m.context } : {}),
-          ...(m.effort ? { default_reasoning_level: m.effort } : {}),
+          ...(m.defaultEffort ? { default_reasoning_level: m.defaultEffort } : {}),
         })),
       });
     }
@@ -404,7 +441,10 @@ const server = createServer(async (req, res) => {
     const credential = MODE === 'codebuddy' ? key : await store.resolve();
 
     if (anthropicPath) {
-      const converted = toChatAnthropic(body, resolveModel);
+      const resolvedModel = resolveModel(body.model);
+      const converted = toChatAnthropic(body, () => resolvedModel, modelLimits(resolvedModel));
+      if (!path.endsWith('/count_tokens')) console.log(JSON.stringify({ event: 'tool_budget', protocol: 'anthropic',
+        model: resolvedModel, ...converted.toolStats, estimated_input: converted.estimatedInput, mode: MODE }));
       if (DUMP) {
         const stamp = new Date().toISOString().replace(/[:.]/g, '-');
         await dump(`dump-${stamp}-anthropic.json`, JSON.stringify(body, null, 2));
@@ -414,7 +454,7 @@ const server = createServer(async (req, res) => {
       // Claude Code asks for a token count before large turns; a local estimate
       // is honest here, the upstream exposes no counting endpoint.
       if (path.endsWith('/count_tokens')) return json(res, 200, { input_tokens: converted.estimatedInput });
-      const payload = JSON.stringify(prepareUpstreamBody(JSON.stringify(converted.request)));
+      const payload = JSON.stringify(prepareUpstreamBody(JSON.stringify(converted.request), 'claude'));
       ({ model: trackedModel, reasoning_effort: trackedEffort } = JSON.parse(payload));
       const upstream = await chatStreamWithChannelRetry(credential, payload, controller.signal);
       if (!upstream.ok) {
@@ -428,26 +468,27 @@ const server = createServer(async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
         const heartbeat = setInterval(() => res.write(': keepalive\n\n'), 10000);
         try {
-          const result = await convertAnthropicStream(upstream.response.body, options,
+          const result = await convertAnthropicStream(idleLimitedStream(upstream.response.body, controller, config.upstreamIdleTimeoutMs ?? 120000), options,
             (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
           trackedUsage = result.usage;
         } finally { clearInterval(heartbeat); }
         res.end();
       } else {
-        const result = await convertAnthropicStream(upstream.response.body, options, () => {});
+        const result = await convertAnthropicStream(idleLimitedStream(upstream.response.body, controller, config.upstreamIdleTimeoutMs ?? 120000), options, () => {});
         trackedUsage = result.usage;
         json(res, 200, result);
       }
       return;
     }
 
-    const { request, registry } = toChatResponses(body);
+    const { request, registry, estimatedInput } = toChatResponses(body, modelLimits(body.model));
+    console.log(JSON.stringify({ event: 'output_budget', model: request.model, max_tokens: request.max_tokens, estimated_input: estimatedInput, mode: MODE }));
     if (DUMP) {
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       await dump(`dump-${stamp}-responses.json`, JSON.stringify(body, null, 2));
       await dump('last-responses-upstream.json', JSON.stringify(request, null, 2));
     }
-    const payload = JSON.stringify(prepareUpstreamBody(JSON.stringify(request)));
+    const payload = JSON.stringify(prepareUpstreamBody(JSON.stringify(request), 'codex'));
     ({ model: trackedModel, reasoning_effort: trackedEffort } = JSON.parse(payload));
     const upstream = await chatStreamWithChannelRetry(credential, payload, controller.signal);
     if (!upstream.ok) {
@@ -459,15 +500,16 @@ const server = createServer(async (req, res) => {
     if (body.stream) res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
     const heartbeat = body.stream ? setInterval(() => res.write(': keepalive\n\n'), 10000) : undefined;
     try {
-      const result = await convertResponsesStream(upstream.response.body, body.model, registry,
-        (event, data) => { if (body.stream) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }, captureUsage);
+      const result = await convertResponsesStream(idleLimitedStream(upstream.response.body, controller, config.upstreamIdleTimeoutMs ?? 120000), body.model, registry,
+        (event, data) => { if (body.stream) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }, captureUsage, body.parallel_tool_calls ?? true);
       trackedUsage = result.usage;
       if (body.stream) res.end(); else json(res, 200, result);
     } finally { clearInterval(heartbeat); }
   } catch (error) {
     failed = true;
     const message = String(error.message ?? error).slice(0, 300);
-    if (!res.headersSent) json(res, 400, { error: { message, type: 'gateway_error' } });
+    if (res.destroyed) return;
+    if (!res.headersSent) json(res, error.status ?? (controller.signal.aborted ? 504 : 400), { error: { message, type: 'gateway_error' } });
     else {
       res.write(`event: error\ndata: ${JSON.stringify({ type: 'error', message, code: 'gateway_error' })}\n\n`);
       res.end();

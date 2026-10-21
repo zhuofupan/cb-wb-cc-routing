@@ -1,7 +1,7 @@
 """Register one Desktop provider per vendor. Credentials come from env; close CC Switch first."""
 from contextlib import closing
 import argparse, datetime, json, os, pathlib, sqlite3, time
-from desktop_models import routes_for, ensure_stopped
+from desktop_models import routes_for, routes_for_settings, ensure_stopped, native_desktop_settings
 VENDORS={
     'workbuddy':('claude-workbuddy-local','WorkBuddy','http://127.0.0.1:18791','WORKBUDDY_LOCAL_SECRET'),
     'codebuddy':('claude-codebuddy-ck','CodeBuddy','http://127.0.0.1:18792','CODEBUDDY_API_KEY'),
@@ -18,9 +18,10 @@ def main(argv=None):
         with closing(sqlite3.connect(str(db)+'.backup-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))) as dest: conn.backup(dest)
         row=conn.execute("select settings_config,meta from providers where id=? and app_type='claude-desktop'",(pid,)).fetchone()
         cfg=json.loads(row[0])if row else {'env':{}};cfg.setdefault('env',{}).update(ANTHROPIC_BASE_URL=endpoint,ANTHROPIC_AUTH_TOKEN=key);cfg['env'].pop('ANTHROPIC_MODEL',None)
-        if args.provider in ('workbuddy','codebuddy'): cfg['env']['CLAUDE_CODE_EFFORT_LEVEL']='max'
+        if args.provider in ('workbuddy','codebuddy'):
+            cfg=native_desktop_settings(cfg)
         meta=json.loads(row[1]or'{}')if row else {};meta.pop('claude_desktop_model_routes',None)
-        meta.update(commonConfigEnabled=False,claudeDesktopMode='proxy',apiFormat='anthropic',claudeDesktopModelRoutes=routes_for(args.provider))
+        meta.update(commonConfigEnabled=False,claudeDesktopMode='proxy',apiFormat='anthropic',claudeDesktopModelRoutes=routes_for_settings(args.provider))
         values=(json.dumps(cfg,ensure_ascii=False),json.dumps(meta,ensure_ascii=False))
         if row: conn.execute("update providers set settings_config=?,meta=? where id=? and app_type='claude-desktop'",(*values,pid))
         else:

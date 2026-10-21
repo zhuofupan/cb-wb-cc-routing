@@ -5,7 +5,7 @@ Registration requires CC Switch to be closed; auth.json is never modified.
 """
 import argparse, copy, datetime, json, os, pathlib, re, sqlite3, time
 from contextlib import closing
-from desktop_models import MODELS, ensure_stopped, model_label
+from desktop_models import MODELS, ensure_stopped, model_label, supported_levels, DEFAULT_EFFORT
 
 VENDORS = {
     'codebuddy': ('codex-codebuddy-ck', 'CodeBuddy', 'http://127.0.0.1:18792/v1', 'CODEBUDDY_API_KEY'),
@@ -18,22 +18,27 @@ def catalog(vendor, template):
         ('', 'deepseek-flash', 'DeepSeek-V4.1-Flash', 1048576, 'max')]
     models = []
     for priority, (_, slug, label, window, effort) in enumerate(rows):
-        client_effort = 'xhigh' if vendor != 'deepseek' and effort == 'max' else effort
+        client_effort = effort if vendor == 'deepseek' else DEFAULT_EFFORT.get(slug, 'high')
+        levels = [{'effort': effort, 'description': f'Upstream effort: {effort}'}] if vendor == 'deepseek' else supported_levels(slug)
         m = copy.deepcopy(template)
-        for key in ['model_messages', 'availability_nux', 'upgrade', 'additional_speed_tiers', 'service_tiers', 'available_access_programs', 'multi_agent_reasoning_effort']:
+        for key in ['availability_nux', 'upgrade', 'additional_speed_tiers', 'service_tiers', 'available_access_programs', 'multi_agent_reasoning_effort']:
             m.pop(key, None)
         size = '1M' if window in (1000000, 1048576) else f'{window//1000}k'
         prefix = {'codebuddy': 'cb·', 'workbuddy': 'wb·', 'deepseek': ''}[vendor]
         display_name = f'{prefix}{label}·{size}' if vendor == 'deepseek' else model_label(vendor, slug, label, window)
+        compact_limit = None  # Codex computes its native default for this window.
         m.update(slug=slug, display_name=display_name, description=f'{vendor}; declared capacity, not a full-window load test',
-                 base_instructions='You are a coding assistant. Use the provided tools to complete the user request. Verify results and report failures honestly.',
-                 context_window=window, max_context_window=window, effective_context_window_percent=95,
-                 default_reasoning_level=client_effort, supported_reasoning_levels=[{'effort': client_effort, 'description': f'Upstream effort: {effort}'}],
+                 # The declared window is the model's real window. Compaction
+                 # fires at auto_compact_token_limit, which reserves room for
+                 # the reply; do not shrink max_context_window below it.
+                 context_window=window, max_context_window=window,
+                 effective_context_window_percent=95,
+                 default_reasoning_level=client_effort, supported_reasoning_levels=levels,
                  input_modalities=['text'] if vendor == 'deepseek' and slug == 'deepseek-v4-pro' else ['text', 'image'],
                  supports_search_tool=False, support_verbosity=False, supports_reasoning_summaries=False,
                  default_reasoning_summary='none', prefer_websockets=False, visibility='list', supported_in_api=True, priority=priority,
                  include_skills_usage_instructions=True, include_plugin_usage_instructions=True, include_apps_usage_instructions=True,
-                 use_responses_lite=False, auto_compact_token_limit=None)
+                 use_responses_lite=False, auto_compact_token_limit=compact_limit)
         models.append(m)
     return {'models': models}
 
@@ -56,7 +61,7 @@ def config(vendor, key, path, base=''):
     quote = lambda value: json.dumps(str(value).replace('\\', '/'), ensure_ascii=False)
     return f'''model_provider = "custom"
 model = "{'deepseek-flash' if vendor == 'deepseek' else 'deepseek-v4.1-flash'}"
-model_reasoning_effort = "{'max' if vendor == 'deepseek' else 'xhigh'}"
+model_reasoning_effort = "{'max' if vendor == 'deepseek' else 'high'}"
 model_reasoning_summary = "none"
 model_catalog_json = {quote(path)}
 web_search = "disabled"

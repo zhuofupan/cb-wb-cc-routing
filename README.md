@@ -4,7 +4,7 @@ GitHub 仓库：[`zhuofupan/cb-wb-cc-routing`](https://github.com/zhuofupan/cb-w
 
 用 CC Switch 将 **DeepSeek 官方、CodeBuddy、WorkBuddy** 接入 **Claude Desktop 的 Code / Cowork**，并保留 Claude Code / Codex 的协议适配示例。目标是更换模型与额度来源，同时继续使用客户端的文件工具、Skills、MCP 和插件；不是把厂商聊天界面搬过来。
 
-2026-10-21 更新：CodeBuddy / WorkBuddy 默认仅保留三款，顺序为 DeepSeek、MiniMax、GLM FlashX，默认使用 DeepSeek。Kimi 和 GLM-5.3 仅在用户明确要求时配置。名称格式为 `cb/ 模型名 (倍率x) · 上下文` / `wb/ 模型名 (倍率x) · 上下文`。Claude 使用 MAX，Codex 使用 xhigh（极高），网关发送 max。用户已确认当前功能测试完成；证据及历史限制见[验证记录](references/validation-20261021.md)。
+2026-10-21 更新：CodeBuddy / WorkBuddy 默认仅保留三款，顺序为 DeepSeek、MiniMax、GLM FlashX，默认使用 DeepSeek。Kimi 和 GLM-5.3 仅在用户明确要求时配置。名称格式为 `cb/ 模型名 (倍率x) · 上下文` / `wb/ 模型名 (倍率x) · 上下文`。两端的五档都保留为可选，网关按上游真实档位取最近档（DeepSeek/GLM 的 medium→low、xhigh→high）；客户端没发档位时沿用同一客户端上次的选择。用户已确认当前功能测试完成；证据及历史限制见[验证记录](references/validation-20261021.md)。
 
 ## 认证与依赖
 
@@ -78,13 +78,19 @@ python scripts/register-ccswitch-desktop.py --provider deepseek
 
 打开 CC Switch，在 **Claude Desktop** 页启用相应厂商，再完全退出并打开 Claude Desktop。保持 profile 可写；`meta.claudeDesktopModelRoutes`、`labelOverride`、`supports1m` 必须使用 camelCase。旧版文档根据 snake_case 搜索误判“不支持映射”，并建议只读 profile，已纠正。
 
+默认流程只配置 **Claude Desktop**。Claude Code（CC Switch 的 Claude 页，`app_type='claude'`）是另一套配置，仅在明确要求时运行 `python scripts/register-ccswitch-claude.py --provider codebuddy|workbuddy`；两边不要因同名而混写。
+
 ## 上下文与最高思考
 
 窗口声明、压缩阈值、客户端显示、实际长请求容量是不同证据。每模型设置示例、Cowork 隔离目录和 SDK audit 的判断边界见 [上下文](references/context-window.md)。没有进行满 1M token 负载测试。
 
-示例启用 `effortPolicy: "highest"`：默认三款请求 max。Codex 目录使用 xhigh（极高），避免桌面默认过滤 max 后回落为中；自动同步也保留映射。该策略覆盖手动低档；若希望自由降档，移除策略并配置允许多个档位的目录。请求 200 不证明供应商内部执行了最高计算量，详见 [思考档位](references/reasoning-effort.md)。
+单次输出上限与输入窗口分开计算：当前 DeepSeek/MiniMax 各 128000、GLM 131072。代理在客户端未声明 `max_tokens` / `max_output_tokens` 时使用该模型上限，并按剩余窗口收敛，不再退回 16K/8K。Codex 与 Desktop 使用当前客户端的原生默认压缩策略。详见[输出预算](references/context-window.md#输出预算2026-10-21-修正)。
 
-Claude Desktop **Code 新会话**的默认 MAX 使用官方 Windows 用户级策略，不能只凭网关 max 或手写账户保存值判断界面已生效。在当前用户的管理员 PowerShell 中运行 `powershell -File scripts/set-claude-code-effort.ps1`，然后完全退出并重开 Claude；脚本会先备份旧值，只设置 `HKCU\SOFTWARE\Policies\Claude` 下的 `effortLevel=max`。该策略不适用于 Cowork，其界面保存档位需分别配置与验收。
+示例使用 `effortPolicy: "client"`：客户端选择哪一档就发哪一档，没有选择时用上次同模型的选择，首次则用上游默认档。Codex 目录和 Claude 选择器都提供 low/medium/high/xhigh/max 五档，并在说明中标注实际上游档位。请求 200 不证明供应商内部执行了对应计算量，详见 [思考档位](references/reasoning-effort.md)。
+
+Claude Desktop 的 Code 与 Cowork 分开记住模型和思考选择。默认不强写 Max 环境变量或 Windows 策略。若历史配置有强制覆盖，可先从托盘退出 CC Switch，再运行 `python scripts/optimize-claude-desktop.py` 预览、加 `--apply` 备份并更新。已有受保护的 Windows 初始默认策略可能保留，不能把设置文件写入当作界面验收。
+
+工具按需加载、等待边界与生效限制分别见 [Codex 原生接入](references/native-integration.md)、[Claude Desktop 原生适配](references/claude-desktop-native.md)。更新 Desktop 设置后需要重新启动客户端；这不会立即缩短现有长聊天。
 
 ## 原生工具与插件
 
@@ -95,8 +101,9 @@ Claude Desktop **Code 新会话**的默认 MAX 使用官方 Windows 用户级策
 ## 测试与读取路由
 
 ```powershell
-node --test tests/gateway.test.mjs tests/responses.test.mjs tests/catalog.test.mjs
+node --test tests/*.test.mjs
 python -m unittest discover -s tests -p "test_*.py"
+powershell -NoProfile -File tests/supervisor.test.ps1
 ```
 
 这些离线回归测试不使用真实 key、不消耗模型额度；实际在线/客户端测试覆盖见 [实测记录](references/desktop-validation.md)。[SKILL.md](SKILL.md) 是给 agent 的读取路由。

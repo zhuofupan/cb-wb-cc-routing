@@ -1,6 +1,61 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {toChat,convertStream,parseChatStream} from '../scripts/responses-codec.mjs';
+import {toChat,convertStream,parseChatStream,resolveMaxOutput,estimateTokens} from '../scripts/responses-codec.mjs';
+
+test('client tool search loads only discovered schemas and survives a complete search/call round trip', async () => {
+  const search = { type: 'tool_search', execution: 'client', description: 'Find project tools',
+    parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } };
+  const deferred = { type: 'namespace', name: 'repo', defer_loading: true, tools: [
+    { type: 'function', name: 'read', parameters: { type: 'object', properties: { path: { type: 'string' } } } },
+    { type: 'function', name: 'write', parameters: { type: 'object', properties: { contents: { type: 'string' } } } },
+  ] };
+  const first = toChat({ tools: [search, deferred], input: 'read a file', parallel_tool_calls: false });
+  assert.deepEqual(first.request.tools.map(t => t.function.name), ['codex_tool_search']);
+  assert.equal(first.request.parallel_tool_calls, false);
+  async function* stream() {
+    yield new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'search1', function: { name: 'codex_tool_search', arguments: '{"query":"read file"}' } }] }, finish_reason: 'tool_calls' }] })}\n\n`);
+  }
+  const events=[];
+  const result=await convertStream(stream(),'test',first.registry,(type,data)=>events.push({type,data}));
+  assert.equal(result.output[0].type,'tool_search_call');
+  assert.deepEqual(result.output[0].arguments,{query:'read file'});
+  assert.ok(events.some(e=>e.type==='response.output_item.done'&&e.data.item.execution==='client'));
+  const loaded={...deferred,tools:[deferred.tools[0]]};
+  const second=toChat({tools:[search,deferred],input:[result.output[0],{type:'tool_search_output',execution:'client',call_id:'search1',status:'completed',tools:[loaded]}]});
+  assert.deepEqual(second.request.tools.map(t=>t.function.name),['codex_tool_search','repo__read']);
+  assert.equal(second.request.messages[1].tool_call_id,'search1');
+  assert.equal(second.registry.get('repo__read').namespace,'repo');
+  const independent=toChat({tools:[search,deferred],input:'another chat'});
+  assert.deepEqual(independent.request.tools.map(t=>t.function.name),['codex_tool_search']);
+});
+
+test('hosted search history is not sent as invalid null tool results and supplied schemas remain callable', () => {
+  const converted=toChat({tools:[{type:'tool_search'},{type:'function',name:'read',defer_loading:true}],input:[
+    {type:'tool_search_call',execution:'server',call_id:null,arguments:{}},
+    {type:'tool_search_output',execution:'server',call_id:null,tools:[]},
+    {role:'user',content:'continue'},
+  ]});
+  assert.equal(converted.request.tools[0].function.name,'read');
+  assert.deepEqual(converted.request.messages,[{role:'user',content:'continue'}]);
+});
+
+test('tool schemas and Chinese text consume input budget without truncating history', () => {
+  assert.ok(estimateTokens([{content:'你好世界'}])>=4);
+  const tools=[{type:'function',name:'large',description:'x'.repeat(12000)}];
+  const withTools=toChat({input:'keep me',tools},{context:10000,maxOutput:9000});
+  const without=toChat({input:'keep me'},{context:10000,maxOutput:9000});
+  assert.ok(withTools.estimatedInput>4000);
+  assert.ok(withTools.request.max_tokens<without.request.max_tokens);
+  assert.equal(withTools.request.messages[0].content,'keep me');
+});
+
+test('omitted and oversized output budgets resolve against the model ceiling',()=>{
+  assert.equal(resolveMaxOutput({modelMax:128000,contextWindow:1000000,estimatedInput:1000}),128000);
+  assert.equal(resolveMaxOutput({requested:200000,modelMax:131072,contextWindow:1000000,estimatedInput:1000}),131072);
+  assert.equal(resolveMaxOutput({modelMax:128000,contextWindow:950000,estimatedInput:940000}),7952);
+  assert.equal(resolveMaxOutput({modelMax:128000,contextWindow:950000,estimatedInput:999999}),16);
+  assert.equal(toChat({model:'x',input:'small'},{maxOutput:128000,context:1000000}).request.max_tokens,128000);
+});
 
 test('MiMo duplicate XML tool markup is hidden across token and UTF-8 boundaries',async()=>{
   const expected='开始。完成。';

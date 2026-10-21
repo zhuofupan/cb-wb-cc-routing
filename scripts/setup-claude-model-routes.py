@@ -1,7 +1,7 @@
 """Update existing Desktop provider mappings; CC Switch must be closed."""
 from contextlib import closing
 import argparse, datetime, json, os, pathlib, sqlite3
-from desktop_models import routes_for, ensure_stopped
+from desktop_models import routes_for_settings, ensure_stopped
 IDS={'workbuddy':'claude-workbuddy-local','codebuddy':'claude-codebuddy-ck'}
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
@@ -15,8 +15,8 @@ def main(argv=None):
             pid=IDS[vendor];row=conn.execute("select meta from providers where id=? and app_type='claude-desktop'",(pid,)).fetchone()
             if not row: raise SystemExit(f'{vendor} Desktop provider not found; register it first')
             meta=json.loads(row[0]or'{}');meta.pop('claude_desktop_model_routes',None)
-            meta.update(commonConfigEnabled=False,claudeDesktopMode='proxy',apiFormat='anthropic',claudeDesktopModelRoutes=routes_for(vendor))
+            meta.update(commonConfigEnabled=False,claudeDesktopMode='proxy',apiFormat='anthropic',claudeDesktopModelRoutes=routes_for_settings(vendor))
             conn.execute("update providers set meta=? where id=? and app_type='claude-desktop'",(json.dumps(meta,ensure_ascii=False),pid))
-            print(f'{vendor}: stored {len(routes_for(vendor))} routes')
+            print(f'{vendor}: stored {len(routes_for_settings(vendor))} routes')
     print('Restart CC Switch, activate the Desktop provider, and reopen Desktop. Keep its profile writable.')
 if __name__=='__main__': main()

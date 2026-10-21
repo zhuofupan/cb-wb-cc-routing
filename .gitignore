@@ -28,3 +28,6 @@ dump-*.json
 server-*.log
 *.db*
 buddy-usage.jsonl
+*.effort.json
+work/
+.pytest_cache/
