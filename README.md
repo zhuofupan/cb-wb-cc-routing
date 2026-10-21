@@ -6,6 +6,10 @@ GitHub 仓库：[`zhuofupan/cb-wb-cc-routing`](https://github.com/zhuofupan/cb-w
 
 2026-10-21 更新：CodeBuddy / WorkBuddy 默认仅保留三款，顺序为 DeepSeek、MiniMax、GLM FlashX，默认使用 DeepSeek。Kimi 和 GLM-5.3 仅在用户明确要求时配置。名称格式为 `cb/ 模型名 (倍率x) · 上下文` / `wb/ 模型名 (倍率x) · 上下文`。两端的五档都保留为可选，网关按上游真实档位取最近档（DeepSeek/GLM 的 medium→low、xhigh→high）；客户端没发档位时沿用同一客户端上次的选择。用户已确认当前功能测试完成；证据及历史限制见[验证记录](references/validation-20261021.md)。
 
+## 用户实践案例
+
+用户提供了 **DeepSeek + Claude 的罗赖马山全景**、**DeepSeek + Codex 的 Diksam 全景**，以及两端模型菜单的已打码截图。见[案例、作品预览与配置截图](references/panorama-cases.md)。作品来源按用户说明记录；配置截图展示选中模型与档位，完整运行、实际路由和满窗口能力分别验收。
+
 ## 认证与依赖
 
 | 通路 | 用户提供什么 | 本地依赖 |

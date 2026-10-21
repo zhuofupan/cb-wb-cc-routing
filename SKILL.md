@@ -3,7 +3,7 @@ name: cb-wb-cc-routing
 description: 将 DeepSeek 官方、CodeBuddy、WorkBuddy 通过 CC Switch 接入 Claude Desktop Code/Cowork 或 CLI；处理模型菜单、上下文、最高思考和工具协议兼容。
 license: MIT
 metadata:
-  version: 1.5.0
+  version: 1.5.1
   author: Codex
   tags: [cc-switch, claude-desktop, codebuddy, workbuddy, deepseek, codex]
 ---
@@ -26,6 +26,7 @@ metadata:
 | Codex 原生指令、工具发现与等待边界 | [native-integration.md](references/native-integration.md) |
 | Desktop 按需工具、默认压缩与设置清理 | [claude-desktop-native.md](references/claude-desktop-native.md) |
 | 最新修复结果与完整人工测试 | [validation-20261021.md](references/validation-20261021.md)、[manual-acceptance-r3.md](references/manual-acceptance-r3.md) |
+| 用户实践作品与配置截图 | [panorama-cases.md](references/panorama-cases.md)；仅在展示案例或解释验收证据时读取 |
 
 ## 必须遵守
 
