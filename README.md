@@ -10,6 +10,28 @@ GitHub 仓库：[`zhuofupan/cb-wb-cc-routing`](https://github.com/zhuofupan/cb-w
 
 用户提供了 **DeepSeek + Claude 的罗赖马山全景**、**DeepSeek + Codex 的 Diksam 全景**，以及两端模型菜单的已打码截图。见[案例、作品预览与配置截图](references/panorama-cases.md)。作品来源按用户说明记录；配置截图展示选中模型与档位，完整运行、实际路由和满窗口能力分别验收。
 
+### 作品预览：DeepSeek + Codex
+
+**雾之林 · Diksam 360°**，项目自带的桌面与移动端预览。
+
+![Diksam 桌面全景预览](assets/cases/diksam-desktop.png)
+
+<img src="assets/cases/diksam-mobile.png" alt="Diksam 移动端全景预览" width="300">
+
+DeepSeek + Claude 的**罗赖马山 · 失落的世界**已记录到案例页，当前尚无作品预览图。
+
+### 配置截图：Claude Desktop / Cowork
+
+三模型菜单、DeepSeek 选中状态和 Max 档位：
+
+![Claude Desktop Cowork 模型菜单与 Max 档位](assets/cases/claude-cowork-model-menu.png)
+
+### 配置截图：Codex Desktop
+
+三模型菜单、DeepSeek 选中状态和“极高”档位：
+
+![Codex Desktop 模型菜单与极高档位](assets/cases/codex-model-menu.png)
+
 ## 认证与依赖
 
 | 通路 | 用户提供什么 | 本地依赖 |
