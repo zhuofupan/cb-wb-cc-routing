@@ -29,6 +29,8 @@ import { usageRecord, appendUsage } from './usage-ledger.mjs';
 import { retryUpstream, idleLimitedStream } from './upstream-retry.mjs';
 import { cachedModels, mergeSelected, syncCodexCatalog } from './catalog-sync.mjs';
 import { CLIENT_LEVELS, DEFAULT_EFFORT, mapEffort, levelIndex } from './effort-map.mjs';
+import { prepareImages, checkPayload } from './request-images.mjs';
+import { loadCompactionCodec, SUMMARY_PROMPT } from './compaction-codec.mjs';
 
 const argv = process.argv.slice(2);
 const flag = name => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
@@ -38,6 +40,21 @@ const BASE_DIR = dirname(SETTINGS);
 
 const config = JSON.parse(await readFile(SETTINGS, 'utf8'));
 const MODE = config.mode === 'codebuddy' ? 'codebuddy' : 'workbuddy';
+const compaction = await loadCompactionCodec(config.compactionKeyPath
+  ?? fileURLToPath(new URL('./compaction.key', import.meta.url)));
+const byteLimit = (name, fallback) => {
+  const value = config[name] ?? fallback;
+  if (!Number.isFinite(value) || value <= 0) throw new Error(`${name} must be a positive MiB value`);
+  return Math.floor(value * 1024 * 1024);
+};
+const REQUEST_LIMIT = byteLimit('requestLimitMiB', 256);
+const UPSTREAM_LIMIT = byteLimit('upstreamRequestLimitMiB', 128);
+
+async function preparePayload(request, clientId) {
+  const images = await prepareImages(request, config.imagePolicy);
+  if (images.compressed || images.omitted) console.log(JSON.stringify({ event: 'image_budget', mode: MODE, ...images }));
+  return checkPayload(JSON.stringify(prepareUpstreamBody(JSON.stringify(request), clientId)), UPSTREAM_LIMIT);
+}
 
 
 // Codecs always come from this file's directory: they are code, not profile
@@ -385,7 +402,8 @@ const server = createServer(async (req, res) => {
   });
 
   if (path === '/health' && req.method === 'GET') {
-    return json(res, 200, { ready: true, mode: MODE, port: PORT, requests: count, active_requests: active - 1, pid: process.pid });
+    return json(res, 200, { ready: true, mode: MODE, port: PORT, requests: count, active_requests: active - 1, pid: process.pid,
+      request_limit_bytes: REQUEST_LIMIT, upstream_request_limit_bytes: UPSTREAM_LIMIT, compaction: 'gateway_summary_v1' });
   }
   // The gateway only serves local CLIs: a browser Origin means cross-origin.
   if (req.headers.origin && MODE === 'codebuddy') {
@@ -427,14 +445,15 @@ const server = createServer(async (req, res) => {
     }
 
     const anthropicPath = req.method === 'POST' && (path === '/v1/messages' || path === '/v1/messages/count_tokens');
-    const responsesPath = req.method === 'POST' && ['/v1/responses', '/responses'].includes(path);
+    const compactPath = req.method === 'POST' && ['/v1/responses/compact', '/responses/compact'].includes(path);
+    const responsesPath = req.method === 'POST' && (compactPath || ['/v1/responses', '/responses'].includes(path));
     if (!anthropicPath && !responsesPath) return json(res, 404, { error: { message: 'Endpoint unsupported' } });
 
     let size = 0;
     const chunks = [];
     for await (const chunk of req) {
       size += chunk.length;
-      if (size > 32 * 1024 * 1024) throw new Error('Request exceeds 32 MiB');
+      if (size > REQUEST_LIMIT) throw Object.assign(new Error(`Request exceeds gateway ingress limit (${REQUEST_LIMIT} bytes)`), { status: 413 });
       chunks.push(chunk);
     }
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
@@ -454,7 +473,7 @@ const server = createServer(async (req, res) => {
       // Claude Code asks for a token count before large turns; a local estimate
       // is honest here, the upstream exposes no counting endpoint.
       if (path.endsWith('/count_tokens')) return json(res, 200, { input_tokens: converted.estimatedInput });
-      const payload = JSON.stringify(prepareUpstreamBody(JSON.stringify(converted.request), 'claude'));
+      const payload = await preparePayload(converted.request, 'claude');
       ({ model: trackedModel, reasoning_effort: trackedEffort } = JSON.parse(payload));
       const upstream = await chatStreamWithChannelRetry(credential, payload, controller.signal);
       if (!upstream.ok) {
@@ -481,14 +500,22 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    const { request, registry, estimatedInput } = toChatResponses(body, modelLimits(body.model));
+    const isCompact = compactPath || (Array.isArray(body.input) && body.input.some(item => item.type === 'compaction_trigger'));
+    const { request, registry, estimatedInput } = toChatResponses(body, { ...modelLimits(body.model), decodeCompaction: compaction.decode });
+    if (isCompact) {
+      request.messages.push({ role: 'system', content: SUMMARY_PROMPT });
+      request.messages.push({ role: 'user', content: 'Summarize the preceding conversation for another assistant to continue. Do not continue the task itself.' });
+      delete request.tools;
+      delete request.tool_choice;
+      request.max_tokens = Math.min(request.max_tokens, 8192);
+    }
     console.log(JSON.stringify({ event: 'output_budget', model: request.model, max_tokens: request.max_tokens, estimated_input: estimatedInput, mode: MODE }));
     if (DUMP) {
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       await dump(`dump-${stamp}-responses.json`, JSON.stringify(body, null, 2));
       await dump('last-responses-upstream.json', JSON.stringify(request, null, 2));
     }
-    const payload = JSON.stringify(prepareUpstreamBody(JSON.stringify(request), 'codex'));
+    const payload = await preparePayload(request, 'codex');
     ({ model: trackedModel, reasoning_effort: trackedEffort } = JSON.parse(payload));
     const upstream = await chatStreamWithChannelRetry(credential, payload, controller.signal);
     if (!upstream.ok) {
@@ -497,13 +524,28 @@ const server = createServer(async (req, res) => {
         { error: { message: `${MODE} upstream (${upstream.status}): ${String(upstream.message ?? '').slice(0, 300)}`, type: upstream.kind ?? 'upstream_error' } });
     }
     count++;
-    if (body.stream) res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-    const heartbeat = body.stream ? setInterval(() => res.write(': keepalive\n\n'), 10000) : undefined;
+    const streaming = body.stream && !compactPath;
+    if (streaming) res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+    const heartbeat = streaming ? setInterval(() => res.write(': keepalive\n\n'), 10000) : undefined;
     try {
       const result = await convertResponsesStream(idleLimitedStream(upstream.response.body, controller, config.upstreamIdleTimeoutMs ?? 120000), body.model, registry,
-        (event, data) => { if (body.stream) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }, captureUsage, body.parallel_tool_calls ?? true);
+        (event, data) => { if (streaming && !isCompact) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); }, captureUsage, body.parallel_tool_calls ?? true);
       trackedUsage = result.usage;
-      if (body.stream) res.end(); else json(res, 200, result);
+      if (isCompact) {
+        const summary = result.output.filter(item => item.type === 'message')
+          .flatMap(item => item.content ?? []).filter(part => part.type === 'output_text').map(part => part.text).join('\n');
+        if (result.status !== 'completed' || !summary.trim()) throw Object.assign(new Error('Summary incomplete; original conversation was not compacted'), { status: 502 });
+        const item = { type: 'compaction', id: `cmp_${randomUUID()}`, encrypted_content: compaction.encode(summary) };
+        if (compactPath) return json(res, 200, { id: result.id, object: 'response.compaction', created_at: Math.floor(Date.now() / 1000), output: [item], usage: result.usage });
+        const response = { ...result, output: [item] };
+        if (!streaming) return json(res, 200, response);
+        const emit = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify({ type: event, ...data })}\n\n`);
+        emit('response.created', { response: { ...response, status: 'in_progress', output: [] } });
+        emit('response.output_item.added', { output_index: 0, item });
+        emit('response.output_item.done', { output_index: 0, item });
+        emit('response.completed', { response });
+        res.end();
+      } else if (streaming) res.end(); else json(res, 200, result);
     } finally { clearInterval(heartbeat); }
   } catch (error) {
     failed = true;

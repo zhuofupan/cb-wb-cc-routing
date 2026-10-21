@@ -29,5 +29,6 @@ server-*.log
 *.db*
 buddy-usage.jsonl
 *.effort.json
+compaction.key
 work/
 .pytest_cache/

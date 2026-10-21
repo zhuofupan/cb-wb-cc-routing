@@ -8,5 +8,8 @@
   "optionalDependencies": {
     "@deepseek-ai/dsh-atomic-write": "0.0.1-rc.1",
     "@deepseek-ai/dsh-home-paths": "0.2.1-rc.2"
+  },
+  "dependencies": {
+    "sharp": "^0.35.5"
   }
 }

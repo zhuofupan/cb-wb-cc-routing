@@ -114,6 +114,13 @@ export function toChat(body, limits = {}) {
   if (body.instructions) messages.push({ role: 'system', content: body.instructions });
   for (const item of input) {
     if (item.type === 'reasoning') continue;
+    if (item.type === 'compaction_trigger') continue;
+    if (item.type === 'compaction') {
+      if (!limits.decodeCompaction) throw new Error('This compaction token requires its original gateway');
+      flushImages();
+      messages.push({ role: 'user', content: '[Summary of earlier conversation]\n' + limits.decodeCompaction(item.encrypted_content) });
+      continue;
+    }
     if (['tool_search_call', 'tool_search_output'].includes(item.type) && item.execution === 'server') continue;
     if (!['function_call_output', 'custom_tool_call_output'].includes(item.type)) flushImages();
     if (item.type === 'tool_search_call') {

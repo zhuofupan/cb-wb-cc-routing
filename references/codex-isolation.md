@@ -21,7 +21,7 @@ python scripts/register-ccswitch-providers.py --provider all
 
 第三方 provider 使用 `wire_api="responses"`、`requires_openai_auth=false`，使用自己的 bearer token；旧文档“必须强制 OpenAI 认证/清空官方登录”的结论已撤回。内联 token 只存本机模板；手写配置优先用 `env_key`，不要提交真实 token。
 
-DeepSeek 使用官方原生 Responses；腾讯两厂商经过本地网关。关闭不支持的 WebSocket 和远程压缩，使用本地压缩。切换后重启 Codex，创建**新会话**，先核对菜单。
+DeepSeek 使用官方原生 Responses；腾讯两厂商经过本地网关。关闭不支持的 WebSocket，当前配置继续使用 Codex 本地压缩。网关另外支持摘要式 `/responses/compact` 与 `compaction_trigger`，其令牌只能交回同一共享网关，见[限制](limits.md)。增加接口不会自动切换现有会话的压缩方式。切换供应商后重启 Codex，创建**新会话**，先核对菜单。
 
 ## 工具与插件
 
