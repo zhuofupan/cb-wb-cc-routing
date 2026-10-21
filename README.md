@@ -8,17 +8,19 @@ GitHub 仓库：[`zhuofupan/cb-wb-cc-routing`](https://github.com/zhuofupan/cb-w
 
 ## 用户实践案例
 
-用户提供了 **DeepSeek + Claude 的罗赖马山全景**、**DeepSeek + Codex 的 Diksam 全景**，以及两端模型菜单的已打码截图。见[案例、作品预览与配置截图](references/panorama-cases.md)。作品来源按用户说明记录；配置截图展示选中模型与档位，完整运行、实际路由和满窗口能力分别验收。
+用户提供了 **DeepSeek + Claude 的罗赖马山全景**、**DeepSeek + Codex 的 Diksam 全景**，以及两端模型菜单的已打码截图。见[使用案例与配置截图](references/panorama-cases.md)。案例来源按用户说明记录；配置截图展示选中模型与档位，完整运行、实际路由和满窗口能力分别验收。
 
-### 作品预览：DeepSeek + Codex
+### 使用案例：DeepSeek + Codex
 
-**雾之林 · Diksam 360°**，项目自带的桌面与移动端预览。
+**雾之林 · Diksam 360°**，项目自带的桌面截图。
 
-![Diksam 桌面全景预览](assets/cases/diksam-desktop.png)
+![DeepSeek + Codex 使用案例：Diksam 全景](assets/cases/diksam-desktop.png)
 
-<img src="assets/cases/diksam-mobile.png" alt="Diksam 移动端全景预览" width="300">
+### 使用案例：DeepSeek + Claude
 
-DeepSeek + Claude 的**罗赖马山 · 失落的世界**已记录到案例页，当前尚无作品预览图。
+**罗赖马山 · 失落的世界**，从用户提供的项目实际运行页面截取。
+
+![DeepSeek + Claude 使用案例：罗赖马山全景](assets/cases/roraima-claude.png)
 
 ### 配置截图：Claude Desktop / Cowork
 
